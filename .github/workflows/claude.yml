@@ -34,13 +34,13 @@ jobs:
         id: claude
         uses: anthropics/claude-code-action@v1
         with:
-          # 认证方式二选一。
-          # 1) Anthropic API key（按量计费）—— 默认启用
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          # 认证：Claude 订阅（Pro / Max）的 OAuth token。
+          # 本地执行 `claude setup-token` 生成，存为仓库 secret CLAUDE_CODE_OAUTH_TOKEN。
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           #
-          # 2) Claude 订阅（Pro / Max）的 OAuth token —— 本地执行 `claude setup-token` 生成。
-          #    改用这种方式时：注释掉上面 anthropic_api_key 那行，取消下面这行的注释。
-          # claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # 备选：改用 Anthropic API key（独立按量计费，与订阅额度无关）时，
+          # 注释掉上面一行、取消下面一行的注释，并配置 secret ANTHROPIC_API_KEY。
+          # anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
 
           # 可选：自定义触发词（默认为 @claude）
           # trigger_phrase: "/claude"
