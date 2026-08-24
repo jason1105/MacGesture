@@ -1,0 +1,207 @@
+name: Build
+
+# 编译验证 CI（路线图 P1-3）。
+#
+# 刻意不包含的东西：
+#   - 不跑 `xcodebuild test`。MacGestureTests 目前唯一的测试是 2013 年留下的
+#     `XCTFail(@"No implementation for ...")` 占位（MacGestureTests/MacGestureTests.m:27），
+#     而共享 scheme 的 TestAction 里它是 skipped="NO"。现在开 test 会稳定失败。
+#     补测试单列，不在本 workflow 范围。
+#   - 不包含任何签名、公证、发布逻辑，不依赖任何 secret。那是 P2 的事。
+#
+# 刻意不做的事：**不通过命令行覆盖任何 build setting**。
+#   若在这里传 ENABLE_HARDENED_RUNTIME=YES 之类的参数，命令行优先级高于工程设置，
+#   验证的就变成"命令行参数"而不是"仓库里的配置"，PR 改没改都一样绿。
+
+on:
+  pull_request:
+  push:
+    branches: [develop]
+  workflow_dispatch:
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # 保守基线：比工程当前的 Xcode 14.2 痕迹新，但不是最激进的一档
+          - name: macOS 15 / Xcode 16.4
+            runner: macos-15
+            xcode: "16.4"
+          # 目标工具链：本项目的目的就是适配 macOS 26 (Tahoe)
+          - name: macOS 26 / Xcode 26.6
+            runner: macos-26
+            xcode: "26.6"
+
+    steps:
+      - name: Checkout
+        # pull_request 事件下这里检出的是「合并后的结果」(refs/pull/N/merge)，
+        # 不是 PR 分支的 head —— 这是有意为之：我们要验的是合进 develop 之后的样子。
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 1
+
+      - name: Select Xcode ${{ matrix.xcode }}
+        env:
+          XCODE_VERSION: ${{ matrix.xcode }}
+        run: |
+          set -euo pipefail
+          sudo xcode-select -s "/Applications/Xcode_${XCODE_VERSION}.app"
+          xcodebuild -version
+          swift --version
+
+      - name: Show SPM dependency URLs
+        # P1-1 的回归保护：依赖 URL 一旦被改回 SSH，runner 没有 SSH key 必然解析失败。
+        # 这一步让失败原因一眼可见，而不是淹没在 xcodebuild 的输出里。
+        run: |
+          set -euo pipefail
+          echo "--- project.pbxproj ---"
+          grep -n "repositoryURL" MacGesture.xcodeproj/project.pbxproj
+          echo "--- Package.resolved ---"
+          cat MacGesture.xcodeproj/project.xcworkspace/xcshareddata/swiftpm/Package.resolved
+          if grep -rq "git@github\.com:" MacGesture.xcodeproj; then
+            echo "::error::检测到 SSH 形式的依赖 URL，CI runner 无 SSH key，必然解析失败（见路线图 P1-1）"
+            exit 1
+          fi
+
+      - name: Build (Release)
+        run: |
+          set -euo pipefail
+          xcodebuild build \
+            -project MacGesture.xcodeproj \
+            -scheme MacGesture \
+            -configuration Release \
+            -derivedDataPath "$RUNNER_TEMP/dd" \
+            | tee "$RUNNER_TEMP/build.log"
+
+      - name: Detect silently-disabled hardened runtime
+        # Apple DTS 论坛记录过 Xcode 在 ad-hoc 签名时会打印
+        # "Disabling hardened runtime with ad-hoc codesigning" 并静默关掉该选项。
+        # 若真发生，工程里把 ENABLE_HARDENED_RUNTIME 设成 YES 就是空操作 —— 必须让它可见。
+        if: always()
+        run: |
+          set -uo pipefail
+          if grep -i "Disabling hardened runtime" "$RUNNER_TEMP/build.log"; then
+            echo "::warning::Xcode 在构建日志中声明它关闭了 hardened runtime（ad-hoc 签名所致）"
+          else
+            echo "构建日志中未出现 'Disabling hardened runtime'"
+          fi
+
+      - name: Inspect code signature
+        id: sig
+        run: |
+          set -euo pipefail
+          APP="$RUNNER_TEMP/dd/Build/Products/Release/MacGesture.app"
+          if [ ! -d "$APP" ]; then
+            echo "::error::未找到构建产物 $APP"
+            exit 1
+          fi
+          echo "APP=$APP" >> "$GITHUB_ENV"
+
+          echo "===== codesign -d -vvv ====="
+          codesign -d -vvv "$APP" 2>&1 | tee "$RUNNER_TEMP/sig.txt"
+
+          FLAGS=$(sed -n 's/.*flags=\(0x[0-9a-f]*\).*/\1/p' "$RUNNER_TEMP/sig.txt")
+          [ -n "$FLAGS" ] || { echo "::error::无法从 codesign 输出解析 flags"; exit 1; }
+          # 按位判断，不做整串比对。
+          # ad-hoc 签名的 flags 恒含 0x2(adhoc) 位，所以永远不会等于字面量 0x10000(runtime)。
+          RUNTIME=$(( FLAGS & 0x10000 ))
+          ADHOC=$(( FLAGS & 0x2 ))
+          TEAM=$(sed -n 's/^TeamIdentifier=\(.*\)$/\1/p' "$RUNNER_TEMP/sig.txt")
+
+          echo "flags=$FLAGS  hardened_runtime=$([ "$RUNTIME" -ne 0 ] && echo yes || echo no)  adhoc=$([ "$ADHOC" -ne 0 ] && echo yes || echo no)  TeamIdentifier=${TEAM:-unknown}"
+          {
+            echo "runtime=$([ "$RUNTIME" -ne 0 ] && echo true || echo false)"
+            echo "adhoc=$([ "$ADHOC" -ne 0 ] && echo true || echo false)"
+            echo "team=${TEAM:-unknown}"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "===== entitlements ====="
+          codesign -d --entitlements :- "$APP" > "$RUNNER_TEMP/ent.plist" 2>/dev/null || true
+          if [ -s "$RUNNER_TEMP/ent.plist" ]; then
+            plutil -p "$RUNNER_TEMP/ent.plist"
+          else
+            echo "(无 entitlements)"
+          fi
+
+          # 用 PlistBuddy 的退出码判断，不依赖 plutil 的打印格式。
+          # plutil -p 对布尔值打印的是 `=> true` 而不是 `=> 1`，整串 grep 会假阴性。
+          for KEY in com.apple.security.automation.apple-events com.apple.security.cs.disable-library-validation; do
+            if /usr/libexec/PlistBuddy -c "Print :$KEY" "$RUNNER_TEMP/ent.plist" >/dev/null 2>&1; then
+              echo "entitlement 存在: $KEY"
+              [ "$KEY" = "com.apple.security.cs.disable-library-validation" ] && echo "dlv=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "entitlement 缺失: $KEY"
+            fi
+          done
+
+      - name: Library Validation 前置条件检查
+        # hardened runtime 会默认开启 Library Validation：进程只能加载
+        # 「平台库」或「与主可执行文件同 Team ID」的库。ad-hoc 签名没有 Team ID，
+        # 因此内嵌的 Sparkle.framework 等第三方动态库会被 dyld 拒绝加载，应用起不来。
+        # 这里做的是静态推导，不依赖能否在无头 runner 上真正启动 GUI 应用。
+        if: always()
+        env:
+          RUNTIME: ${{ steps.sig.outputs.runtime }}
+          ADHOC: ${{ steps.sig.outputs.adhoc }}
+          TEAM: ${{ steps.sig.outputs.team }}
+          DLV: ${{ steps.sig.outputs.dlv }}
+        run: |
+          set -uo pipefail
+          echo "内嵌的 framework："
+          ls -1 "$APP/Contents/Frameworks" 2>/dev/null || echo "(无 Contents/Frameworks)"
+          EMBEDDED=$(ls -1 "$APP/Contents/Frameworks" 2>/dev/null | grep -c '\.framework$' || true)
+
+          if [ "$RUNTIME" = "true" ] && [ "$TEAM" = "not set" ] && [ "${EMBEDDED:-0}" -gt 0 ] && [ "${DLV:-false}" != "true" ]; then
+            echo "::error::hardened runtime 已开启 + 无 Team ID（ad-hoc）+ 内嵌 ${EMBEDDED} 个 framework + 未声明 disable-library-validation —— Library Validation 会在启动时拒绝加载这些 framework，应用预计无法启动。修复方式：entitlements 增加 com.apple.security.cs.disable-library-validation，或关闭 hardened runtime，或使用 Apple 签发的证书（有 Team ID）。"
+            exit 1
+          fi
+          echo "Library Validation 前置条件检查通过（runtime=$RUNTIME team=$TEAM embedded=${EMBEDDED:-0} dlv=${DLV:-false}）"
+
+      - name: Launch smoke test
+        # 佐证性检查，不作为门禁：无头 runner 没有登录态 GUI session，
+        # 应用可能因与 Library Validation 无关的原因退出。真正有意义的信号是
+        # stderr 里出现 dyld 的 "not valid for use in process"。
+        continue-on-error: true
+        run: |
+          set -uo pipefail
+          "$APP/Contents/MacOS/MacGesture" > "$RUNNER_TEMP/launch.log" 2>&1 &
+          PID=$!
+          sleep 15
+          if kill -0 "$PID" 2>/dev/null; then
+            echo "进程存活 15 秒，动态库加载成功"
+            kill "$PID" 2>/dev/null || true
+          else
+            wait "$PID" || echo "进程已退出，退出码 $?"
+            cat "$RUNNER_TEMP/launch.log" || true
+            if grep -q "not valid for use in process" "$RUNNER_TEMP/launch.log" 2>/dev/null; then
+              echo "::error::dyld 因 Library Validation 拒绝加载内嵌 framework"
+            fi
+          fi
+
+      - name: Package app
+        if: success()
+        run: |
+          set -euo pipefail
+          # 不能把 .app 目录直接交给 upload-artifact：它默认的打包方式不保留
+          # 符号链接与可执行权限位，解压出来的 bundle 跑不起来。
+          ditto -c -k --sequesterRsrc --keepParent "$APP" "$RUNNER_TEMP/MacGesture.zip"
+          ls -lh "$RUNNER_TEMP/MacGesture.zip"
+
+      - name: Upload app
+        if: success()
+        uses: actions/upload-artifact@v7
+        with:
+          name: MacGesture-${{ matrix.runner }}-Xcode${{ matrix.xcode }}.zip
+          path: ${{ runner.temp }}/MacGesture.zip
+          # 已经是 zip 了，别再套一层
+          archive: false
+          if-no-files-found: error
+          retention-days: 14
