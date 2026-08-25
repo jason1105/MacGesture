@@ -328,3 +328,31 @@ PR base `develop`；正文写明：根因、采纳的变体（0a / 外科 / 完�
 - **Spec 覆盖**：§5 阶段 0 三 spike → Task 0/1/2/3；阶段 1 B 两变体 → Task 4-surgical/4-full；0a 采纳分支 → Task 5；§6 验证（screencapture + 人工 + 双外观）→ 各 Task 的验证步骤；§9 交付 → Task 6。无遗漏 spec 章节。
 - **占位符**：Task 4-full 的「展开占位」是**有意的决策门后延展**（spec 明确 B 形态由 spike 决定），非偷懒 TODO——已注明触发条件与再入 writing-plans 的动作，且给出了 Interface 契约。其余步骤均含实际命令/代码。
 - **类型一致**：门控方法名全程统一为 `-mg_repairMacOS26PrefsRenderingIfNeeded`；外科版方法 `-mg_replaceBoxesIn:`；面板 outlet 名与 `AppPrefsWindowController.h` 一致（`_generalPreferenceView` 等，含拼写 `_filtersPrefrenceView`）。
+
+---
+
+## 阶段 0 执行结果（2026-08-25 实测，本机 macOS 26.5.2）
+
+| Task | 结果 |
+|---|---|
+| Task 0 基线 | ✅ 复现：General 面板深色模式全白 |
+| Task 1 审计 | ✅ **只有 General 坏**；Gestures / Filters / AppleScript / About 四个面板全部正常渲染。当时相关性=「唯一含 NSBox 的面板坏」 |
+| Task 2 `UIDesignRequiresCompatibility` | ❌ 无效（仍白 + 把 app 整体拖进浅色兼容外观），已回滚 |
+| Task 3 爆炸半径 | ✅ 决定性：**现有 xib 控件个体被诅咒**——搬到「全新 NSView(红块) 能正常渲染的同处」仍白；全新代码创建的视图/控件正常 |
+| 候选 X（改 xib 拆盒子） | ❌ **失败，且证伪了「盒子」假设**：把 General 的 3 个 NSBox 从 xib 中拆除（27 个控件移到面板下、frame 已按偏移修正、XML 合法、编译通过），General **仍全白**。boxType 改 custom 也无效。 |
+
+### 修正后的根因判断
+
+- **不是 NSBox**：控件即使从一开始就不在任何盒子里加载（xib 已无盒子），General 仍白。
+- **其余 4 个面板正常也不是因为「没盒子」**——真正的判别因素**仍未查清**。General 相对其它面板的独有物：3 个 `ComboColorWell`（自定义 NSView 子类）、`NSSlider`、带数据的 `NSPopUpButton`、以及 `windowDidLoad` 里对 General 控件的大量运行时操作（combo 填充、slider frame 调整等）。哪一个是毒源**未定位**。
+- **唯一已证实可行的路径**：**B-完整版**——用代码全新创建 General 的控件（全新视图已被红块实验证实渲染正常），而非复用/搬动 xib 控件。这是目前唯一「有正面证据支持」的修法，尽管根因未解释。
+
+### 已排除清单（都实测无效）
+
+盒子替换 / 拆除盒子 / boxType=custom / 隐藏 SwiftUI 外壳 / 清 layer.contents / 切 appearance / 补 layer 背景色 / `UIDesignRequiresCompatibility`。
+
+### 给接手方
+
+- **下一步 = B-完整版**（Task 4-full），需回到 writing-plans 为 General 的 ~27 个控件逐一展开「全新创建 + 重接 outlet/action/绑定」。规模较大、易错（尤其 ColorWell/Slider/带数据下拉/绑定）。
+- **值得先花时间定位真正的毒源**（为什么 General 的现有控件白、其它面板不白）——若能找到单点原因，可能有比 B-完整版小得多的修法。建议方向：逐个从 General 移除/替换嫌疑控件类型（先 ColorWell，再 Slider/PopUp），二分定位。
+- 验证管线（本地构建 + lldb 开偏好 + `screencapture -l<windowNumber>`）已在本计划顶部「复用工具」记录，可直接复用。
