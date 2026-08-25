@@ -35,6 +35,14 @@
 
 - (void)drawRect:(NSRect)cellFrame
 {
+    // macOS 26 (Tahoe): the custom-drawn path is incompatible with the redesigned
+    // NSColorWell and corrupts the whole enclosing panel's compositing (renders white).
+    // Defer to the native rendering there; older systems keep the custom appearance.
+    if ([NSProcessInfo processInfo].operatingSystemVersion.majorVersion >= 26) {
+        [super drawRect:cellFrame];
+        return;
+    }
+
     BOOL drawButtonArea = _showsColorWellButton && cellFrame.size.width >= 2*cellFrame.size.height;
     CGFloat actualRadius = floor(MIN(_cornerRadius, MIN(cellFrame.size.width/2, cellFrame.size.height/2)));
 
