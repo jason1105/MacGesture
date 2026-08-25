@@ -1,9 +1,11 @@
 # 设计：修复偏好窗口在 macOS 26 上的渲染错乱（P4-1）
 
-- 状态：待评审
+- 状态：**已实现**（根因 = 自定义类 `ComboColorWell`；最小修复已在本机深/浅双模式验证）
 - 日期：2026-08-25
 - 路线图：议题 #1（P4-1）｜阻塞：议题 #11、PR #8 的 GUI 验收
 - 目标定性：**最小修复**（保持现有 UI/控件/行为，只让偏好窗口在 macOS 26 上正常渲染）
+
+> **落地结论（2026-08-25）**：二分定位到毒源是 `ComboColorWell`（`NSColorWell` 子类，整段 override `drawRect:` 不调 super），在 macOS 26 上与重新设计的 NSColorWell 不兼容，令**整个 General 面板**合成为白位图。修复 = `ComboColorWell.drawRect:` 在 `majorVersion >= 26` 时交回 `[super drawRect:]`（仅 1 文件 ~8 行，不动 xib/outlet/binding）。**§5 的方案 B（外科/完整版）不再需要**。详见计划文档「阶段 1 执行结果」。§8 待实测点 #4「新建控件正常、xib 控件反色」的机制由此获解释：并非「所有 xib 控件」，而是特定自定义子类 `ComboColorWell` 的自定义绘制路径。
 
 ## 1. 问题
 

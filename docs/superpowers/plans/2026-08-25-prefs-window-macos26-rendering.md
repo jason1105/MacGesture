@@ -356,3 +356,46 @@ PR base `develop`；正文写明：根因、采纳的变体（0a / 外科 / 完�
 - **下一步 = B-完整版**（Task 4-full），需回到 writing-plans 为 General 的 ~27 个控件逐一展开「全新创建 + 重接 outlet/action/绑定」。规模较大、易错（尤其 ColorWell/Slider/带数据下拉/绑定）。
 - **值得先花时间定位真正的毒源**（为什么 General 的现有控件白、其它面板不白）——若能找到单点原因，可能有比 B-完整版小得多的修法。建议方向：逐个从 General 移除/替换嫌疑控件类型（先 ColorWell，再 Slider/PopUp），二分定位。
 - 验证管线（本地构建 + lldb 开偏好 + `screencapture -l<windowNumber>`）已在本计划顶部「复用工具」记录，可直接复用。
+
+---
+
+## 阶段 1 执行结果（2026-08-25 二分定位 + 最小修复，本机 macOS 26.5.2 + Xcode 26.6）
+
+**根因已定位（决定性，非推断）：自定义类 `ComboColorWell`（`NSColorWell` 子类）。**
+
+二分方法：在 `AppPrefsWindowController` 的 `windowDidLoad`（**首次显示前**）用临时 env 门控 `removeFromSuperview` 各嫌疑控件，逐组截图判读（临时探针已回滚，不进提交）：
+
+| 实验 | 结果 |
+|---|---|
+| 基线（真实 ComboColorWell） | ⬜️ 整个 General 内容区全白 |
+| 显示**后** `setHidden:YES` 全部 8 个嫌疑控件 + 强制重绘 | ⬜️ 仍白 → **白色 baked 在首次显示，不是 live drawRect 产物** |
+| 显示**前** `removeFromSuperview` 全部 8 个 | ✅ 完美渲染 → 毒源在这 8 个里 |
+| 显示前只移除 **5 个 color well**（保留 slider + 两个 popup） | ✅ 完美 → **color well 是唯一毒源；slider/popup 无辜** |
+| 把 ComboColorWell 换成**原生 `NSColorWell`** | ✅ 完美 → **是自定义子类，不是 NSColorWell 本身** |
+| 对自定义 well 加 `wantsLayer` / 设 `colorWellStyle` | ⬜️ 仍白 → 子类无法靠属性微调救活 |
+
+**机制**：`ComboColorWell` 整段 override `drawRect:` 且不调 `super`；在 macOS 26 上这条遗留自定义绘制路径与重新设计的 `NSColorWell` 不兼容，导致**整个 General 面板**被合成为一张不透明白位图（面板级，非盒子级——这也**推翻了之前的按盒子推断**：5 个 well 在「Gesture」盒子里，却连它上方「General」盒子一起变白）。
+
+**修正之前的排除结论**：阶段 0 说「拆盒子后仍白 ⇒ 非盒子问题」是对的；但当时把 5 个盒子外/盒子内控件一起搬动，掩盖了真正的单点毒源。本轮用「首次显示前逐类移除」的干净二分才隔离出 ComboColorWell。
+
+### 采纳的修法：Design B — `ComboColorWell.drawRect:` 在 macOS 26 交回 `super`
+
+```objc
+- (void)drawRect:(NSRect)cellFrame {
+    if ([NSProcessInfo processInfo].operatingSystemVersion.majorVersion >= 26) {
+        [super drawRect:cellFrame];   // 交给原生 NSColorWell 绘制
+        return;
+    }
+    ... 原自定义绘制（macOS < 26 一行不动）...
+}
+```
+
+- **仅 1 文件 ~8 行**：`MacGesture/Helpers/ComboColorWell.m`。不动 xib / 37 个 outlet / binding / action。
+- **版本门控** `majorVersion >= 26`，与全局约束一致；macOS < 26 保留自定义外观。
+- **`B-完整版（Task 4-full）不再需要`**——单点根因 ⇒ 最小修复即可。
+- 验证：深色 ✅ / 浅色（运行时强制 Aqua）✅ 均完整渲染，5 个 color well 变原生 Tahoe 样式、仍可用/enabled。其余 4 面板不含 ComboColorWell，且本改动为类内 drawRect，逻辑上不受影响（结合阶段 0 审计）。
+
+### 已知功能待人工确认（不阻塞渲染修复）
+
+- 旧 `drawRect` 末尾调 `applyActive` 设 `colorPanel.showsAlpha = allowsClearColor`（5 个 well 都 `allowsClearColor=YES`）。macOS 26 走 `super` 后不再调用，原生取色面板的**透明度滑块可能不再自动出现**。经与维护者确认：**接受原生外观，透明度行为留待人工功能验收**（如需，后续加一个版本门控的 `-activate:` override 补 `showsAlpha`）。
+- 面板切换在「lldb 停住进程注入调用」下驱动不可靠（方法返回但界面不切，属 AppKit 显示需 runloop 的探测局限），非产品缺陷、与本修复无关。
