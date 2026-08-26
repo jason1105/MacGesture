@@ -1,6 +1,7 @@
 
 #import <Cocoa/Cocoa.h>
 #import <UserNotifications/UserNotifications.h>
+#import <ServiceManagement/ServiceManagement.h>
 #import "utils.h"
 
 void MGPostNotification(NSString *title, NSString *body, BOOL playSound) {
@@ -82,81 +83,21 @@ BOOL wildcardString(NSString *bundleName, NSString *wildFilter, BOOL ignoreCase)
 
 @end
 
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated"
-
 @implementation LoginServicesHelper
 
-+ (LSSharedFileListItemRef)itemRefWithListRef:(LSSharedFileListRef)listRef {
-    NSURL *bundleURL = [NSBundle mainBundle].bundleURL;
-    CFArrayRef arr = LSSharedFileListCopySnapshot(listRef, NULL);
-
-    for (NSInteger i = 0; i < CFArrayGetCount(arr); ++i) {
-        LSSharedFileListItemRef itemRef = (LSSharedFileListItemRef)CFArrayGetValueAtIndex(arr, i);
-        CFURLRef urlRef;
-        OSStatus error = LSSharedFileListItemResolve(itemRef, 0, &urlRef, NULL);
-
-        if (error != noErr) {
-            continue;
-        }
-
-        if (CFEqual(urlRef, (__bridge CFURLRef)bundleURL)) {
-            CFRetain(itemRef);
-            CFRelease(arr);
-            CFRelease(urlRef);
-            return itemRef;
-        }
-        CFRelease(urlRef);
-    }
-    CFRelease(arr);
-    return NULL;
-}
-
+// macOS 13+: SMAppService replaces the deprecated LSSharedFileList login-item API.
 + (BOOL)isLoginItem {
-    LSSharedFileListRef loginItems = LSSharedFileListCreate(NULL, kLSSharedFileListSessionLoginItems, NULL);
-    if (!loginItems) return NO;
-
-    LSSharedFileListItemRef loginItemRef = [self itemRefWithListRef:loginItems];
-    if (!loginItemRef) {
-        CFRelease(loginItems);
-        return NO;
-    }
-    CFRelease(loginItems);
-    CFRelease(loginItemRef);
-    return YES;
+    return SMAppService.mainAppService.status == SMAppServiceStatusEnabled;
 }
 
-+ (void)makeLoginItemActive:(BOOL)active
-{
-    NSURL *bundleURL = [NSBundle mainBundle].bundleURL;
-
-    LSSharedFileListRef loginItems = LSSharedFileListCreate(NULL, kLSSharedFileListSessionLoginItems, NULL);
-
-    if (loginItems)
-    {
-        LSSharedFileListItemRef item;
-
-        if (active)
-        {
-            item = LSSharedFileListInsertItemURL(loginItems,
-                kLSSharedFileListItemLast, NULL, NULL, (__bridge CFURLRef)bundleURL, NULL, NULL);
-
-            if (item) CFRelease(item);
-        }
-        else
-        {
-            item = [self itemRefWithListRef:loginItems];
-
-            if (item)
-                LSSharedFileListItemRemove(loginItems, item);
-
-            if (item) CFRelease(item);
-        }
-
-        CFRelease(loginItems);
-    }
++ (void)makeLoginItemActive:(BOOL)active {
+    NSError *error = nil;
+    BOOL ok = active
+        ? [SMAppService.mainAppService registerAndReturnError:&error]
+        : [SMAppService.mainAppService unregisterAndReturnError:&error];
+    if (!ok)
+        NSLog(@"[LoginServicesHelper] failed to %@ login item: %@",
+              active ? @"register" : @"unregister", error);
 }
 
 @end
-
-#pragma clang diagnostic pop
