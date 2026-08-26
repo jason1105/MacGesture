@@ -48,6 +48,20 @@ jobs:
         with:
           fetch-depth: 1
 
+      - name: Report runner security posture
+        # 为什么需要这一步：在 PR #3 上观察到 runner 与开发者本机结论相反 ——
+        # 同一份 ad-hoc + hardened runtime + 内嵌 Sparkle.framework 的产物，
+        # 在 macOS 26.5.2 本机上 dyld 直接拒绝加载（Library Validation），
+        # 在 runner 上却能正常启动 15 秒。若 runner 的 SIP/AMFI 与消费者机器不同，
+        # 则 runner 上的「启动成功」不能外推到真实用户环境。
+        # 这一步把 runner 的安全态记录下来，供判读 Launch smoke test 时参考。
+        run: |
+          set -uo pipefail
+          echo "csrutil status : $(csrutil status 2>&1)"
+          echo "spctl --status : $(spctl --status 2>&1)"
+          echo "boot-args      : $(nvram boot-args 2>&1 || echo '(none)')"
+          echo "sw_vers        : $(sw_vers -productVersion) ($(uname -m))"
+
       - name: Select Xcode ${{ matrix.xcode }}
         env:
           XCODE_VERSION: ${{ matrix.xcode }}
@@ -166,9 +180,19 @@ jobs:
           echo "Library Validation 前置条件检查通过（runtime=$RUNTIME team=$TEAM embedded=${EMBEDDED:-0} dlv=${DLV:-false}）"
 
       - name: Launch smoke test
-        # 佐证性检查，不作为门禁：无头 runner 没有登录态 GUI session，
-        # 应用可能因与 Library Validation 无关的原因退出。真正有意义的信号是
-        # stderr 里出现 dyld 的 "not valid for use in process"。
+        # 佐证性检查，不作为门禁。两个方向都不可全信：
+        #   - 失败不一定是 Library Validation：无头 runner 没有登录态 GUI session，
+        #     应用可能因无关原因退出。有意义的信号是 stderr 里出现 dyld 的
+        #     "not valid for use in process"。
+        #   - **成功也不代表用户机器上能跑**：PR #3 实测到 runner 与开发者本机
+        #     结论相反（runner 存活 15 秒，本机 macOS 26.5.2 直接被 dyld 拒绝，
+        #     三种 bundle 结构均复现）。判读本步骤结果前，先看上面
+        #     Report runner security posture 的输出。
+        #
+        # 必须 always()：上面的 Library Validation 门禁一旦失败，若这里不加 always()
+        # 就会被跳过 —— 而这一步恰恰是唯一能给出「应用到底起不起得来」运行时实证的
+        # 步骤。门禁负责拦，证据收集不能被拦掉。
+        if: always() && env.APP != ''
         continue-on-error: true
         run: |
           set -uo pipefail
@@ -187,7 +211,8 @@ jobs:
           fi
 
       - name: Package app
-        if: success()
+        # always()：即便门禁判定失败，产物仍有价值 —— 可下载下来人工复现
+        if: always() && env.APP != ''
         run: |
           set -euo pipefail
           # 不能把 .app 目录直接交给 upload-artifact：它默认的打包方式不保留
@@ -196,7 +221,7 @@ jobs:
           ls -lh "$RUNNER_TEMP/MacGesture.zip"
 
       - name: Upload app
-        if: success()
+        if: always() && env.APP != ''
         uses: actions/upload-artifact@v7
         with:
           name: MacGesture-${{ matrix.runner }}-Xcode${{ matrix.xcode }}.zip
