@@ -1,6 +1,6 @@
 # 设计：偏好数据归档迁移到 Secure Coding（P3-3）
 
-- 状态：**待评审**（设计阶段，未动代码）
+- 状态：**已实现**；真实数据回归 + 运行冒烟通过（见 §6「执行结果」）
 - 日期：2026-08-26
 - 路线图：议题 #1 的 **P3-3**「迁移到 secure coding 并做偏好数据迁移」
 - 目标定性：把已弃用的 `NSKeyedUnarchiver unarchiveObjectWithData:` / `NSKeyedArchiver archivedDataWithRootObject:`（macOS 10.14 弃用，非安全）迁移到 secure coding API，**且不丢老用户的手势规则 / 颜色 / AppleScript 数据**。
@@ -91,4 +91,18 @@ id MGUnarchive(NSData *data, NSSet<Class> *classes);
 2. **是否加单元测试**：`MacGestureTests` 现仅一个 2013 年的 `XCTFail` 占位、且 CI 未开 test（#1 记载）。§6.3 的 round-trip 断言值得加，但要顺带把 test target 跑起来（另立小事）。**建议**：本 PR 先加一个独立的、能过的 round-trip test 文件，但**不**在本轮开 CI 的 test action（避免踩那个占位失败）——你也可以选择先不加、只靠 §6.2 的真实数据回归。
 3. **真实旧数据夹具**：你手上有没有现成的 3.2.0 带规则/颜色的 `defaults export`？有的话给我，回归更真；没有我构造一份近似夹具。
 
-> 本文档只做设计，未改任何代码。评审通过后再进入实现。
+## 执行结果（2026-08-26）
+
+设计通过后按上文实现（单 PR）。验收：
+
+- **真实数据回归（核心）**：用维护者 3.2.0 真实备份（`.../MacGesture_备份_20260814/...cleanup-test-fullrules`）——独立程序取出 `rules`/`appleScripts` 的归档 NSData，**旧非安全解档 vs 新 secure 解档逐条对拍**：
+  - `rules`：13 条，`EQUAL=1`，无 error（字段全对）
+  - `appleScripts`：8 条，`EQUAL=1`，无 error
+  - ⇒ secure 迁移**无损读回真实老数据**。
+- **NSColor**：旧归档→secure 解档，颜色值完整、无 error（早先 lldb 实证）。
+- **运行冒烟**：迁移后构建读维护者**真实 live 偏好**正常加载/渲染；偏好窗色井经新 `MGColorValueTransformer` 绑定正常显示、无 transformer/binding/解档报错。
+- **构建**：Xcode 26.6 通过，代码与 xib 均无残留非安全归档 API；CI 双档由 PR 覆盖。
+
+关于单元测试（§8 决策 2）：本项目 test target 只有 2013 年的失败占位、CI 未开 test，**新增 XCTest 需先复活 test target（属 #1 记载的「补测试另立子议题」）**。因此本 PR 以「真实数据回归 + NSColor 实证 + 运行冒烟」作为验收证据（比合成单测更强，因用的是真实数据），XCTest 待 test target 复活后补。
+
+**待真机人工**：色井点开取色/改色/渲染跟随（同 P4 已修渲染），随 P2 或正式安装验。

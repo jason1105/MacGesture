@@ -882,7 +882,7 @@ static NSString *currentScriptId = nil;
 
     if (tableView != _rulesTableView) return NO;
 
-    NSData *data = [NSKeyedArchiver archivedDataWithRootObject:rowIndexes];
+    NSData *data = MGArchive(rowIndexes);
     [pasteboard declareTypes:@[ MacGestureRuleDataType ] owner:self];
     [pasteboard setData:data forType:MacGestureRuleDataType];
     return YES;
@@ -902,7 +902,7 @@ static NSString *currentScriptId = nil;
 
     NSPasteboard* pboard = [info draggingPasteboard];
     NSData* rowData = [pboard dataForType:MacGestureRuleDataType];
-    NSIndexSet* rowIndexes = [NSKeyedUnarchiver unarchiveObjectWithData:rowData];
+    NSIndexSet* rowIndexes = MGUnarchive(rowData, [NSSet setWithObject:NSIndexSet.class]);
     NSInteger dragRow = [rowIndexes firstIndex];
 
     [[RulesList sharedRulesList] moveRuleFrom:dragRow ruleTo:row];
