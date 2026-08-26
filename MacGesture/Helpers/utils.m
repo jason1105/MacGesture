@@ -1,6 +1,20 @@
 
 #import <Cocoa/Cocoa.h>
+#import <UserNotifications/UserNotifications.h>
 #import "utils.h"
+
+void MGPostNotification(NSString *title, NSString *body, BOOL playSound) {
+    UNMutableNotificationContent *content = [UNMutableNotificationContent new];
+    content.title = title ?: @"";
+    content.body = body ?: @"";
+    if (playSound) content.sound = [UNNotificationSound defaultSound];
+    UNNotificationRequest *request =
+        [UNNotificationRequest requestWithIdentifier:[[NSUUID UUID] UUIDString]
+                                             content:content
+                                             trigger:nil];
+    [[UNUserNotificationCenter currentNotificationCenter] addNotificationRequest:request
+                                                          withCompletionHandler:nil];
+}
 
 NSString *frontBundleName(void) {
     NSRunningApplication *runningApp = [[NSWorkspace sharedWorkspace] frontmostApplication];
