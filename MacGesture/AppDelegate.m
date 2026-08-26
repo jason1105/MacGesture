@@ -137,7 +137,10 @@ static NSUserDefaults *defaults;
     UNUserNotificationCenter *notificationCenter = [UNUserNotificationCenter currentNotificationCenter];
     notificationCenter.delegate = self;
     [notificationCenter requestAuthorizationWithOptions:(UNAuthorizationOptionAlert | UNAuthorizationOptionSound)
-                                      completionHandler:^(BOOL granted, NSError *_Nullable error) {}];
+                                      completionHandler:^(BOOL granted, NSError *_Nullable error) {
+        if (!granted)
+            NSLog(@"[MacGesture] notification authorization not granted: %@", error);
+    }];
 
     // The application is an ordinary app that appears in the Dock and may
     // have a user interface.
