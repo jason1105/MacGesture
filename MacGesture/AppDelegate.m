@@ -237,6 +237,14 @@ static NSUserDefaults *defaults;
     [self showPreferences];
 }
 
+- (BOOL)applicationShouldHandleReopen:(NSApplication *)sender hasVisibleWindows:(BOOL)flag {
+    // Reopening the app (double-clicking it in Finder while it's already running)
+    // brings the preferences window back. The menu-bar icon can be hidden in a
+    // crowded / notched menu bar, so without this there's no other way back in.
+    if (!flag) [self showPreferences];
+    return YES;
+}
+
 - (IBAction)showHelp:(id)sender {
     NSURL *url = [[NSBundle mainBundle] URLForResource:@"README" withExtension:@"html"];
     [[NSWorkspace sharedWorkspace] openURL:url];
