@@ -17,6 +17,48 @@ void MGPostNotification(NSString *title, NSString *body, BOOL playSound) {
                                                           withCompletionHandler:nil];
 }
 
+NSData *MGArchive(id<NSSecureCoding> object) {
+    if (!object) return nil;
+    NSError *error = nil;
+    NSData *data = [NSKeyedArchiver archivedDataWithRootObject:object requiringSecureCoding:YES error:&error];
+    if (!data) NSLog(@"[MGArchive] failed: %@", error);
+    return data;
+}
+
+id MGUnarchive(NSData *data, NSSet<Class> *classes) {
+    if (!data) return nil;
+    NSError *error = nil;
+    id object = [NSKeyedUnarchiver unarchivedObjectOfClasses:classes fromData:data error:&error];
+    if (!object) NSLog(@"[MGUnarchive] failed: %@", error);
+    return object;
+}
+
+NSSet<Class> *MGPropertyListClasses(void) {
+    static NSSet<Class> *classes = nil;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        classes = [NSSet setWithObjects:NSArray.class, NSMutableArray.class,
+                   NSDictionary.class, NSMutableDictionary.class,
+                   NSString.class, NSNumber.class, nil];
+    });
+    return classes;
+}
+
+// Secure replacement for the deprecated/insecure NSKeyedUnarchiveFromData binding transformer.
+// The stock NSSecureUnarchiveFromDataTransformer does NOT allow NSColor, so the color-well
+// bindings need this subclass.
+@interface MGColorValueTransformer : NSSecureUnarchiveFromDataTransformer @end
+@implementation MGColorValueTransformer
++ (NSArray<Class> *)allowedTopLevelClasses {
+    return [[super allowedTopLevelClasses] arrayByAddingObject:NSColor.class];
+}
+@end
+
+void MGRegisterValueTransformers(void) {
+    [NSValueTransformer setValueTransformer:[MGColorValueTransformer new]
+                                    forName:@"MGColorValueTransformer"];
+}
+
 NSString *frontBundleName(void) {
     NSRunningApplication *runningApp = [[NSWorkspace sharedWorkspace] frontmostApplication];
     

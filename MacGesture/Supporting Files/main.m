@@ -7,7 +7,9 @@
 //
 
 #import <Cocoa/Cocoa.h>
+#import "utils.h"
 
 int main(int argc, const char *argv[]) {
+    MGRegisterValueTransformers();   // must run before any nib/binding loads
     return NSApplicationMain(argc, argv);
 }
