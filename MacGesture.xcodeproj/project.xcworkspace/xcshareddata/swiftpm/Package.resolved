@@ -1,4 +1,5 @@
 {
+  "originHash" : "74784ff33407b9ca71d04ea3acb135980046aa512ad6ef909abb7da8127b1333",
   "pins" : [
     {
       "identity" : "shortcutrecorder",
@@ -14,10 +15,10 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/sparkle-project/Sparkle.git",
       "state" : {
-        "revision" : "9d85a02fe7916caa7531847452c4933d331503a5",
-        "version" : "2.3.1"
+        "revision" : "ac2def288cbff5cfc7df3ffef6abdf45b72bcb0a",
+        "version" : "2.9.6"
       }
     }
   ],
-  "version" : 2
+  "version" : 3
 }
