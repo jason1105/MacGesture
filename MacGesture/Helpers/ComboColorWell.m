@@ -35,9 +35,21 @@
 
 - (void)drawRect:(NSRect)cellFrame
 {
-    // macOS 26 (Tahoe): the custom-drawn path is incompatible with the redesigned
-    // NSColorWell and corrupts the whole enclosing panel's compositing (renders white).
-    // Defer to the native rendering there; older systems keep the custom appearance.
+    // macOS 26 (Tahoe): this custom-drawn path is incompatible with the redesigned
+    // NSColorWell and corrupts the whole enclosing panel's compositing (renders white),
+    // so defer to native rendering there. Older systems keep the custom appearance — the
+    // early return leaves initWithFrame:/initWithCoder: and the < 26 path fully untouched.
+    //
+    // Runtime NSProcessInfo check, NOT @available(macOS 26, *): CI builds this with both
+    // Xcode 16.4 (SDK 15) and Xcode 26.6 (SDK 26); @available on a version an older SDK
+    // doesn't know is a compatibility risk, whereas the runtime check compiles cleanly on
+    // both toolchains. Please don't "unify" this to @available.
+    //
+    // Behavior note: on macOS 26 the native NSColorWell owns its color-panel lifecycle, so
+    // the old -applyActive (which set colorPanel.showsAlpha = _allowsClearColor and closed
+    // the shared panel on deactivate) no longer runs. Verified acceptable in real-machine
+    // acceptance; if the opacity slider is ever required on 26, add a version-gated
+    // -activate: override rather than reviving the custom drawing.
     if ([NSProcessInfo processInfo].operatingSystemVersion.majorVersion >= 26) {
         [super drawRect:cellFrame];
         return;
