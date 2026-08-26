@@ -11,8 +11,8 @@
 
 PRODUCT        = MacGesture
 APP_BUNDLE     = com.codefalling.$(PRODUCT:rfc1034identifier)
-APP_VERSION    = 3.2.0
-APP_BUILD      = 198
+APP_VERSION    = 3.3.0
+APP_BUILD      = 199   # 开发/手动构建占位；正式发布的版本号由 release.yml 用 tag + $GITHUB_RUN_NUMBER 覆盖
 
 // Link system frameworks explicitly (module auto-linking is not enabled in this project).
 OTHER_LDFLAGS  = $(inherited) -framework UserNotifications -framework ServiceManagement

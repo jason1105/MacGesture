@@ -1,0 +1,145 @@
+name: Release
+
+# 发布链路 CI（路线图 P2）。由「打版本 tag」触发，产出：
+#   构建 → 打包(zip) → GitHub Release → Sparkle EdDSA 签名 + 生成 AppCast → 提交 AppCast 到 master。
+#
+# 前置：仓库需配置 Secret `SPARKLE_ED_PRIVATE_KEY`（Sparkle generate_keys 导出的私钥）。
+#   未配置时本 workflow 会「明确失败」而不是静默跳过——因为发布 tag 是显式动作，
+#   不能悄无声息地产出一个没签名/不完整的发布。
+#
+# 不含 Developer ID 签名 / 公证：本轮 ad-hoc，接受 Gatekeeper 首次放行摩擦（见路线图 §7）。
+#   将来配了证书，在 build 后加一步 codesign/notarytool（用 `if: secrets.DEVELOPER_ID_* != ''` 门控）即可。
+
+on:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+"      # 3.3.0
+      - "[0-9]+.[0-9]+.[0-9]+-*"    # 3.3.0-beta.1 等预发布
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "要发布的 tag（如 3.3.0-beta.1）；workflow_dispatch 手动触发时必填"
+        required: true
+
+permissions:
+  contents: write   # 建 Release、把 AppCast 推到 master
+
+concurrency:
+  group: release-${{ github.event.inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Release ${{ github.event.inputs.tag || github.ref_name }}
+    runs-on: macos-26
+    env:
+      TAG: ${{ github.event.inputs.tag || github.ref_name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0   # 需要能 checkout/push master 来更新 AppCast
+          # 强制检出与 TAG 同名的 ref：workflow_dispatch 手动触发时，若不绑定，
+          # 实际检出的是 UI 下拉选的分支（默认 develop），可能和 tag 输入不一致，
+          # 导致「源码是 develop、却打上该 tag 版本号发布」。绑定后 tag 不存在会直接报错。
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - name: Require Sparkle signing key
+        env:
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+        run: |
+          set -uo pipefail
+          if [ -z "${SPARKLE_ED_PRIVATE_KEY:-}" ]; then
+            echo "::error::Secret SPARKLE_ED_PRIVATE_KEY 未配置——无法签名发布。请先按 P2 方案配置（docs/superpowers/plans/2026-08-26-p2-release-pipeline.md）。"
+            exit 1
+          fi
+          echo "Sparkle 私钥 Secret 已就位。"
+
+      - name: Select Xcode 26.6
+        run: |
+          set -euo pipefail
+          sudo xcode-select -s "/Applications/Xcode_26.6.app"
+          xcodebuild -version
+
+      - name: Build (Release, versioned from tag)
+        # 版本号从 tag 来：CFBundleShortVersionString=${APP_VERSION}、CFBundleVersion=${APP_BUILD}。
+        # 用 run_number 作 build 号，保证 beta.2 的 CFBundleVersion 严格大于 beta.1（Sparkle 按它比较新旧）。
+        run: |
+          set -euo pipefail
+          xcodebuild build \
+            -project MacGesture.xcodeproj \
+            -scheme MacGesture \
+            -configuration Release \
+            -derivedDataPath "$RUNNER_TEMP/dd" \
+            APP_VERSION="$TAG" \
+            APP_BUILD="$GITHUB_RUN_NUMBER"
+
+      - name: Package
+        run: |
+          set -euo pipefail
+          APP="$RUNNER_TEMP/dd/Build/Products/Release/MacGesture.app"
+          [ -d "$APP" ] || { echo "::error::未找到构建产物 $APP"; exit 1; }
+          # 校验版本确实被打进产物
+          echo "shortVersion=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist")"
+          echo "bundleVersion=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Contents/Info.plist")"
+          mkdir -p "$RUNNER_TEMP/feed"
+          # ditto 保留符号链接与权限位，普通 zip 会破坏 bundle
+          ditto -c -k --sequesterRsrc --keepParent "$APP" "$RUNNER_TEMP/feed/MacGesture-$TAG.zip"
+          ls -lh "$RUNNER_TEMP/feed/"
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          PRERELEASE=""
+          case "$TAG" in *-*) PRERELEASE="--prerelease" ;; esac
+          gh release create "$TAG" "$RUNNER_TEMP/feed/MacGesture-$TAG.zip" \
+            --title "$TAG" \
+            --generate-notes \
+            $PRERELEASE
+
+      - name: Sign + generate AppCast
+        # generate_appcast 随 Sparkle SPM 拉取，构建后位于 SourcePackages/artifacts。
+        # 私钥经 stdin 传入（--ed-key-file -），不落盘、不进程列表。
+        # download-url-prefix 指向本次 Release 的下载目录，使 appcast 的 enclosure url 正确。
+        env:
+          SPARKLE_ED_PRIVATE_KEY: ${{ secrets.SPARKLE_ED_PRIVATE_KEY }}
+        run: |
+          set -euo pipefail
+          GA="$RUNNER_TEMP/dd/SourcePackages/artifacts/sparkle/Sparkle/bin/generate_appcast"
+          [ -x "$GA" ] || { echo "::error::未找到 generate_appcast（$GA）"; exit 1; }
+          printf '%s' "$SPARKLE_ED_PRIVATE_KEY" | "$GA" \
+            --ed-key-file - \
+            --download-url-prefix "https://github.com/${GITHUB_REPOSITORY}/releases/download/${TAG}/" \
+            --link "https://github.com/${GITHUB_REPOSITORY}" \
+            "$RUNNER_TEMP/feed"
+          echo "===== 生成的 AppCast.xml ====="
+          cat "$RUNNER_TEMP/feed/AppCast.xml"
+
+      - name: Publish AppCast to master
+        # feed 的 SUFeedURL 指向 raw master/AppCast.xml，故把生成的 AppCast 提交到 master。
+        # 注：本步骤生成的是「以最新发布为准」的 feed；Sparkle 只需最新 item 比已装版本新即可触发更新。
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git fetch origin master
+          git checkout -B master origin/master
+          cp "$RUNNER_TEMP/feed/AppCast.xml" AppCast.xml
+          git add AppCast.xml
+          if git diff --cached --quiet; then
+            echo "AppCast 无变化，跳过提交。"
+          else
+            git commit -m "chore(release): 更新 AppCast 至 $TAG [skip ci]"
+            git push origin master
+          fi
+
+      - name: Upload release artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: MacGesture-${{ env.TAG }}
+          path: ${{ runner.temp }}/feed/
+          if-no-files-found: warn
+          retention-days: 14
