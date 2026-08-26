@@ -704,13 +704,7 @@ static NSString *currentScriptId = nil;
         [defaults setObject:@[languagesOrder[idx]] forKey:@"AppleLanguages"];
     else [defaults removeObjectForKey:@"AppleLanguages"];
 
-    NSUserNotification *notification = [NSUserNotification new];
-    notification.title = [@"MacGesture" copy];
-    notification.informativeText = NSLocalizedString(@"Restart MacGesture to take effect", nil);
-    notification.soundName = NSUserNotificationDefaultSoundName;
-    notification.hasActionButton = NO;
-
-    [[NSUserNotificationCenter defaultUserNotificationCenter] deliverNotification:notification];
+    MGPostNotification(@"MacGesture", NSLocalizedString(@"Restart MacGesture to take effect", nil), YES);
 }
 
 - (IBAction)previewPositionChanged:(id)sender {
@@ -795,13 +789,7 @@ static NSString *currentScriptId = nil;
         if (data) [data writeToURL:url atomically:YES];
         [file closeFile];
 
-        NSUserNotification *notification = [NSUserNotification new];
-        notification.title = [@"MacGesture" copy];
-        notification.informativeText = NSLocalizedString(@"Export succeeded", nil);
-        notification.soundName = NSUserNotificationDefaultSoundName;
-        notification.hasActionButton = NO;
-
-        [[NSUserNotificationCenter defaultUserNotificationCenter] deliverNotification:notification];
+        MGPostNotification(@"MacGesture", NSLocalizedString(@"Export succeeded", nil), YES);
     }
 }
 

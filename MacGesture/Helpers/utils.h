@@ -8,6 +8,9 @@ BOOL wildcardArray(NSString *bundleName, NSArray *wildFilters, BOOL ignoreCase);
 
 BOOL wildcardString(NSString *bundleName, NSString *wildFilter, BOOL ignoreCase);
 
+/// Post a user notification via UNUserNotificationCenter (replaces the deprecated NSUserNotification).
+void MGPostNotification(NSString *title, NSString *body, BOOL playSound);
+
 @interface NSArray<ObjectType> (Utils)
 
 - (NSArray<__kindof NSObject *> *)mappedArrayUsingBlock:(__kindof NSObject *(NS_NOESCAPE ^)(ObjectType obj, NSUInteger idx))block;

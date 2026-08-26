@@ -13,3 +13,6 @@ PRODUCT        = MacGesture
 APP_BUNDLE     = com.codefalling.$(PRODUCT:rfc1034identifier)
 APP_VERSION    = 3.2.0
 APP_BUILD      = 198
+
+// Link UserNotifications explicitly (module auto-linking is not enabled in this project).
+OTHER_LDFLAGS  = $(inherited) -framework UserNotifications
