@@ -241,7 +241,13 @@ static NSUserDefaults *defaults;
     // Reopening the app (double-clicking it in Finder while it's already running)
     // brings the preferences window back. The menu-bar icon can be hidden in a
     // crowded / notched menu bar, so without this there's no other way back in.
-    if (!flag) [self showPreferences];
+    //
+    // Do NOT trust `flag`: the gesture overlay (CanvasWindowController) is a borderless
+    // full-screen window that stays ordered-in for the app's lifetime, so AppKit reports
+    // hasVisibleWindows=YES even when Preferences is closed. Check the prefs window itself.
+    if (!_preferencesWindowController || !_preferencesWindowController.window.isVisible) {
+        [self showPreferences];
+    }
     return YES;
 }
 
