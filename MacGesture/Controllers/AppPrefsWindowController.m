@@ -770,6 +770,12 @@ static NSString *currentScriptId = nil;
 - (IBAction)doExport:(id)sender {
     NSSavePanel *panel = [NSSavePanel savePanel];
 
+    // Default to a recognizable, timestamped backup name instead of "Untitled".
+    NSDateFormatter *formatter = [[NSDateFormatter alloc] init];
+    formatter.dateFormat = @"yyyy-MM-dd-HHmmss";
+    panel.nameFieldStringValue = [NSString stringWithFormat:@"MacGesture-bak-%@.plist",
+                                  [formatter stringFromDate:[NSDate date]]];
+
     if ([panel runModal] == NSModalResponseOK) {
         NSURL *url = [panel URL];
         NSTask *task = [NSTask new];
