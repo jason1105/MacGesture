@@ -746,6 +746,19 @@ static NSString *currentScriptId = nil;
         NSData *data = [NSData dataWithContentsOfURL:url];
         if (data) [file writeData:data];
         [file closeFile];
+
+        // Wait for `defaults import` to finish before reporting success / offering
+        // "Quit Now" — otherwise terminating too fast can race the still-writing child.
+        [task waitUntilExit];
+        if (task.terminationStatus != 0) {
+            NSAlert *alert = [[NSAlert alloc] init];
+            alert.alertStyle = NSAlertStyleWarning;
+            alert.messageText = NSLocalizedString(@"Import failed. Please check the file and try again.", nil);
+            [alert addButtonWithTitle:NSLocalizedString(@"OK", nil)];
+            [alert beginSheetModalForWindow:self.window completionHandler:nil];
+            return;
+        }
+
         [self showAlertWithMessage:NSLocalizedString(@"Import data succeeded. Now you need to Quit and reopen MacGesture to take effect.", nil) confirmButtonTitle:NSLocalizedString(@"Quit Now", nil) cancelButtonTitle:NSLocalizedString(@"Later", nil) completionHandler:^(NSModalResponse returnCode) {
             if (returnCode == NSAlertFirstButtonReturn) {
                 [[NSApplication sharedApplication] terminate:self];
