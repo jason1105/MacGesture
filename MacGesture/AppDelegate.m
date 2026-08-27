@@ -24,6 +24,8 @@ static AppPrefsWindowController *_preferencesWindowController;
 static NSTimeInterval lastMouseWheelEventTime = 0;
 static BOOL eventTriggered;
 static NSUserDefaults *defaults;
+static NSTimer *accessibilityWatchTimer;
+static NSAlert *accessibilityAlert;
 
 + (AppDelegate *)appDelegate {
     return (AppDelegate *) [[NSApplication sharedApplication] delegate];
@@ -107,50 +109,26 @@ static NSUserDefaults *defaults;
 
     // Accessibility permission check & alert
 
-    CGEventMask eventMask = CGEventMaskBit(kCGEventRightMouseDown) | CGEventMaskBit(kCGEventRightMouseDragged) |
-                            CGEventMaskBit(kCGEventRightMouseUp) | CGEventMaskBit(kCGEventLeftMouseDown) |
-                            CGEventMaskBit(kCGEventScrollWheel);
-    mouseEventTap = CGEventTapCreate(kCGHIDEventTap, kCGHeadInsertEventTap, kCGEventTapOptionDefault, eventMask, mouseEventCallback, NULL);
-
     const void * keys[] = { kAXTrustedCheckOptionPrompt };
     const void * values[] = { kCFBooleanTrue };
 
     CFDictionaryRef options = CFDictionaryCreate(
         kCFAllocatorDefault, keys, values, sizeof(keys) / sizeof(*keys),
         &kCFCopyStringDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
-    
-    BOOL accessibilityEnabled = AXIsProcessTrustedWithOptions(options);
-    
-    if (accessibilityEnabled) {
-        CFRunLoopSourceRef runLoopSource = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, mouseEventTap, 0);
-        CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, kCFRunLoopCommonModes);
-        CFRelease(mouseEventTap);
-        CFRelease(runLoopSource);
-    } else {
-        NSAlert *alert = [NSAlert new];
-        alert.alertStyle = NSAlertStyleWarning;
-        alert.messageText = NSLocalizedString(
-            @"MacGesture processes your mouse events, thus requires "
-             "the Accessibility permission to work properly", nil);
-        alert.informativeText = [NSString stringWithFormat:@"%@\n\n%@",
-            NSLocalizedString(@"Please navigate to System Preferences → Security & "
-                "Privacy → Privacy → Accessibility section to enable it for MacGesture.", nil),
-            NSLocalizedString(@"If it's already enabled but gestures aren't "
-                "working properly, please re-open MacGesture.", nil)];
-        [alert addButtonWithTitle:NSLocalizedString(@"Open System Settings", nil)];
-        [alert addButtonWithTitle:NSLocalizedString(@"Later", nil)];
 
-        // Presented asynchronously so it cannot block the remainder of
-        // -applicationDidFinishLaunching:. Activating first matters as well:
-        // an LSUIElement app has no Dock icon, so an alert raised while the
-        // app is inactive can end up buried behind other windows.
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [NSApp activateIgnoringOtherApps:YES];
-            if ([alert runModal] == NSAlertFirstButtonReturn)
-                [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:
-                    @"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"]];
-        });
-        // FIXME: Dynamic checking & registration to events
+    BOOL accessibilityEnabled = AXIsProcessTrustedWithOptions(options);
+    CFRelease(options);
+
+    if (!accessibilityEnabled || ![self enableMouseEventTap]) {
+        // Gestures cannot be wired up yet. Watch for the permission arriving so
+        // they start working on their own — previously the tap was only ever
+        // registered here at launch, so granting the permission did nothing
+        // until the user quit and reopened MacGesture.
+        [self startWatchingForAccessibilityPermission];
+
+        // Only nag about the permission when that is actually what is missing.
+        if (!accessibilityEnabled)
+            [self presentAccessibilityAlert];
     }
 
     [center setSuspended:NO];
@@ -192,6 +170,127 @@ static NSUserDefaults *defaults;
             name:NSWorkspaceSessionDidResignActiveNotification
             object:nil];
 }
+
+#pragma mark -
+#pragma mark Accessibility permission & mouse event tap
+
+// Creates the mouse event tap and wires it into the run loop.
+//
+// Idempotent: once the tap exists this only makes sure it is enabled, so it is
+// safe to call from both the launch path and the permission watcher.
+//
+// Returns NO when the tap could not be created, which in practice means the
+// Accessibility permission has not been granted (yet).
+- (BOOL)enableMouseEventTap {
+    if (mouseEventTap != NULL) {
+        CGEventTapEnable(mouseEventTap, true);
+        return YES;
+    }
+
+    CGEventMask eventMask = CGEventMaskBit(kCGEventRightMouseDown) | CGEventMaskBit(kCGEventRightMouseDragged) |
+                            CGEventMaskBit(kCGEventRightMouseUp) | CGEventMaskBit(kCGEventLeftMouseDown) |
+                            CGEventMaskBit(kCGEventScrollWheel);
+
+    mouseEventTap = CGEventTapCreate(kCGHIDEventTap, kCGHeadInsertEventTap,
+                                     kCGEventTapOptionDefault, eventMask,
+                                     mouseEventCallback, NULL);
+    if (mouseEventTap == NULL)
+        return NO;
+
+    CFRunLoopSourceRef runLoopSource =
+        CFMachPortCreateRunLoopSource(kCFAllocatorDefault, mouseEventTap, 0);
+    CFRunLoopAddSource(CFRunLoopGetCurrent(), runLoopSource, kCFRunLoopCommonModes);
+    CFRelease(runLoopSource);
+
+    // mouseEventTap is deliberately kept alive for the lifetime of the app and
+    // not released here: mouseEventCallback re-enables it via CGEventTapEnable()
+    // whenever the system disables the tap (kCGEventTapDisabledByTimeout /
+    // ...ByUserInput), so the static has to remain an owned, valid reference.
+    return YES;
+}
+
+// Polls until the Accessibility permission shows up, then wires up the event tap
+// so gestures begin working without the user restarting MacGesture.
+//
+// The timer is installed in NSRunLoopCommonModes on purpose. The permission
+// alert below runs a modal session, and a timer scheduled only in the default
+// mode would be starved for exactly as long as that alert is on screen — which
+// is precisely the window in which the user goes and grants the permission.
+- (void)startWatchingForAccessibilityPermission {
+    if (accessibilityWatchTimer)
+        return;
+
+    __weak AppDelegate *weakSelf = self;
+    accessibilityWatchTimer =
+        [NSTimer timerWithTimeInterval:1.0 repeats:YES block:^(NSTimer *timer) {
+            AppDelegate *strongSelf = weakSelf;
+            if (!strongSelf) {
+                [timer invalidate];
+                return;
+            }
+
+            if (!AXIsProcessTrusted())
+                return;
+
+            // Trusted, but the tap may still be refused for a moment; keep
+            // polling rather than giving up and looking dead again.
+            if (![strongSelf enableMouseEventTap])
+                return;
+
+            [timer invalidate];
+            accessibilityWatchTimer = nil;
+            [strongSelf accessibilityPermissionDidArrive];
+        }];
+
+    [[NSRunLoop mainRunLoop] addTimer:accessibilityWatchTimer forMode:NSRunLoopCommonModes];
+}
+
+// Called once the permission is in place and gestures are actually live.
+- (void)accessibilityPermissionDidArrive {
+    // The "please grant the permission" alert, if it is still up, is now stale.
+    // Ending its modal session makes runModal return NSModalResponseStop, so the
+    // "Open System Settings" branch correctly does not fire.
+    if (accessibilityAlert.window.isVisible)
+        [NSApp stopModal];
+    accessibilityAlert = nil;
+
+    MGPostNotification(NSLocalizedString(@"MacGesture is ready", nil),
+                       NSLocalizedString(@"Accessibility permission granted, gestures are now active.", nil),
+                       NO);
+}
+
+- (void)presentAccessibilityAlert {
+    NSAlert *alert = [NSAlert new];
+    alert.alertStyle = NSAlertStyleWarning;
+    alert.messageText = NSLocalizedString(
+        @"MacGesture processes your mouse events, thus requires "
+         "the Accessibility permission to work properly", nil);
+    alert.informativeText = [NSString stringWithFormat:@"%@\n\n%@",
+        NSLocalizedString(@"Please navigate to System Preferences → Security & "
+            "Privacy → Privacy → Accessibility section to enable it for MacGesture.", nil),
+        NSLocalizedString(@"If it's already enabled but gestures aren't "
+            "working properly, please re-open MacGesture.", nil)];
+    [alert addButtonWithTitle:NSLocalizedString(@"Open System Settings", nil)];
+    [alert addButtonWithTitle:NSLocalizedString(@"Later", nil)];
+
+    accessibilityAlert = alert;
+
+    // Presented asynchronously so it cannot block the remainder of
+    // -applicationDidFinishLaunching:. Activating first matters as well: an
+    // LSUIElement app has no Dock icon, so an alert raised while the app is
+    // inactive can end up buried behind other windows.
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [NSApp activateIgnoringOtherApps:YES];
+        NSModalResponse response = [alert runModal];
+        if (accessibilityAlert == alert)
+            accessibilityAlert = nil;
+        if (response == NSAlertFirstButtonReturn)
+            [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:
+                @"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"]];
+    });
+}
+
+#pragma mark -
 
 - (void)workspaceSessionActiveChange:(NSNotification *)notification {
     BOOL nowActive = notification.name != NSWorkspaceSessionDidResignActiveNotification;

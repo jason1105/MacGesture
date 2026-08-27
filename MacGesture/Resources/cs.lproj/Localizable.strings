@@ -5,6 +5,9 @@
 "About" = "O aplikaci";
 
 /* No comment provided by engineer. */
+"Accessibility permission granted, gestures are now active." = "Accessibility permission granted, gestures are now active.";
+
+/* No comment provided by engineer. */
 "AppleScript" = "AppleScript";
 
 /* No comment provided by engineer. */
@@ -75,6 +78,9 @@
 
 /* No comment provided by engineer. */
 "MacGesture is placed in an unsupported location" = "MacGesture je umístěn v nepodporované složce";
+
+/* No comment provided by engineer. */
+"MacGesture is ready" = "MacGesture is ready";
 
 /* No comment provided by engineer. */
 "MacGesture processes your mouse events, thus requires the Accessibility permission to work properly" = "MacGesture zpracovává vaše pohyby myší a proto vyžaduje oprávnění k Usnadněnému přístupu";
