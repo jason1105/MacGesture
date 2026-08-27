@@ -831,10 +831,21 @@ static NSString *currentScriptId = nil;
 // when the field editor is torn down (switching preference panes hides the view,
 // which forces the first responder to resign), and by then the selection may be
 // gone — -selectedRow returns -1, which used to be passed straight through as an
-// array subscript and crashed the app. The table is view based, so -rowForView:
-// gives the row the control actually lives in, which is both crash-safe and more
-// accurate than the current selection. Returns -1 when no row can be resolved,
-// in which case there is nothing meaningful to write to.
+// array subscript and crashed the app.
+//
+// The two editable controls are not equivalent, so -rowForView: only helps one
+// of them:
+//   - "Title" is built per row in -tableView:viewForTableColumn:row: and really
+//     lives inside the table's row view, so -rowForView: pins down the row being
+//     edited even if it is not the selected one.
+//   - "Apple Script" is _appleScriptTextField, laid out in the xib as a sibling
+//     of the table's scroll view rather than inside the table, so -rowForView:
+//     always returns -1 for it and this falls back to -selectedRow. That is the
+//     same row it has always used; the point here is only that -1 no longer
+//     reaches an array subscript.
+//
+// Returns -1 when no row can be resolved, in which case there is nothing
+// meaningful to write to.
 - (NSInteger)appleScriptRowForEditedControl:(NSControl *)control {
     NSInteger row = [_appleScriptTableView rowForView:control];
     if (row < 0)
