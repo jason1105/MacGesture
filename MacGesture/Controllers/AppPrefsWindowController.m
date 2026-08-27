@@ -825,6 +825,34 @@ static NSString *currentScriptId = nil;
 #pragma mark -
 #pragma mark NSControlTextEditingDelegate Implementation
 
+// Resolves which AppleScript row an edited control belongs to.
+//
+// -selectedRow alone is not safe here: -control:textShouldEndEditing: also fires
+// when the field editor is torn down (switching preference panes hides the view,
+// which forces the first responder to resign), and by then the selection may be
+// gone — -selectedRow returns -1, which used to be passed straight through as an
+// array subscript and crashed the app.
+//
+// The two editable controls are not equivalent, so -rowForView: only helps one
+// of them:
+//   - "Title" is built per row in -tableView:viewForTableColumn:row: and really
+//     lives inside the table's row view, so -rowForView: pins down the row being
+//     edited even if it is not the selected one.
+//   - "Apple Script" is _appleScriptTextField, laid out in the xib as a sibling
+//     of the table's scroll view rather than inside the table, so -rowForView:
+//     always returns -1 for it and this falls back to -selectedRow. That is the
+//     same row it has always used; the point here is only that -1 no longer
+//     reaches an array subscript.
+//
+// Returns -1 when no row can be resolved, in which case there is nothing
+// meaningful to write to.
+- (NSInteger)appleScriptRowForEditedControl:(NSControl *)control {
+    NSInteger row = [_appleScriptTableView rowForView:control];
+    if (row < 0)
+        row = [_appleScriptTableView selectedRow];
+    return row;
+}
+
 - (BOOL)control:(NSControl *)control textShouldEndEditing:(NSText *)fieldEditor {
     // control is editfield,control.id == row,control.identifier == "Gesture"|"Filter"|Other(only saving)
     if ([control.identifier isEqualToString:@"Gesture"]) {    // edit gesture
@@ -847,9 +875,13 @@ static NSString *currentScriptId = nil;
     } else if ([control.identifier isEqualToString:@"Note"]) {  // edit filter
         [[RulesList sharedRulesList] setNote:control.stringValue atIndex:control.tag];
     } else if ([control.identifier isEqualToString:@"Apple Script"]) {  // edit apple script
-        [[AppleScriptsList sharedAppleScriptsList] setScriptAtIndex:[_appleScriptTableView selectedRow] script:control.stringValue];
+        NSInteger row = [self appleScriptRowForEditedControl:control];
+        if (row >= 0)
+            [[AppleScriptsList sharedAppleScriptsList] setScriptAtIndex:row script:control.stringValue];
     } else if ([control.identifier isEqualToString:@"Title"]) {  // edit title
-        [[AppleScriptsList sharedAppleScriptsList] setTitleAtIndex:[_appleScriptTableView selectedRow] title:control.stringValue];
+        NSInteger row = [self appleScriptRowForEditedControl:control];
+        if (row >= 0)
+            [[AppleScriptsList sharedAppleScriptsList] setTitleAtIndex:row title:control.stringValue];
     }
     [[RulesList sharedRulesList] save];
     [[AppleScriptsList sharedAppleScriptsList] save];

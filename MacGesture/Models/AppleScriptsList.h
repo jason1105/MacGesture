@@ -21,21 +21,27 @@
 
 - (NSInteger)count;
 
-- (NSString *)titleAtIndex:(NSUInteger)index;
+// The index parameters below are NSInteger rather than NSUInteger on purpose:
+// callers routinely pass -[NSTableView selectedRow], which is -1 when nothing
+// is selected. As NSUInteger that sentinel silently becomes a huge value and
+// blows up as an out-of-bounds subscript. Every one of these methods bounds
+// checks its index and is a no-op (getters return @"") when it is out of range.
 
-- (NSString *)scriptAtIndex:(NSUInteger)index;
+- (NSString *)titleAtIndex:(NSInteger)index;
 
-- (NSString *)idAtIndex:(NSUInteger)index;
+- (NSString *)scriptAtIndex:(NSInteger)index;
+
+- (NSString *)idAtIndex:(NSInteger)index;
 
 - (NSString *)getScriptById:(NSString *)id;
 
 - (NSInteger)getIndexById:(NSString *)id;
 
-- (void)setScriptAtIndex:(NSUInteger)index script:(NSString *)script;
+- (void)setScriptAtIndex:(NSInteger)index script:(NSString *)script;
 
-- (void)setTitleAtIndex:(NSUInteger)index title:(NSString *)title;
+- (void)setTitleAtIndex:(NSInteger)index title:(NSString *)title;
 
-- (void)removeAtIndex:(NSUInteger)index;
+- (void)removeAtIndex:(NSInteger)index;
 
 @property (strong, atomic) NSMutableArray<NSMutableDictionary *> *appleScriptsList;
 

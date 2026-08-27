@@ -54,15 +54,26 @@
     return [_appleScriptsList count];
 }
 
-- (NSString *)titleAtIndex:(NSUInteger)index {
+// Guards every index-based accessor below. -[NSTableView selectedRow] returns
+// -1 when there is no selection, and rows can disappear between a control being
+// edited and the edit being committed, so an out-of-range index here is a
+// routine occurrence rather than a programming error.
+- (BOOL)isValidIndex:(NSInteger)index {
+    return index >= 0 && index < (NSInteger)_appleScriptsList.count;
+}
+
+- (NSString *)titleAtIndex:(NSInteger)index {
+    if (![self isValidIndex:index]) return @"";
     return _appleScriptsList[index][@"title"];
 }
 
-- (NSString *)scriptAtIndex:(NSUInteger)index {
+- (NSString *)scriptAtIndex:(NSInteger)index {
+    if (![self isValidIndex:index]) return @"";
     return _appleScriptsList[index][@"script"];
 }
 
-- (NSString *)idAtIndex:(NSUInteger)index {
+- (NSString *)idAtIndex:(NSInteger)index {
+    if (![self isValidIndex:index]) return @"";
     return _appleScriptsList[index][@"id"];
 }
 
@@ -86,11 +97,13 @@
     return -1;
 }
 
-- (void)setScriptAtIndex:(NSUInteger)index script:(NSString *)script {
+- (void)setScriptAtIndex:(NSInteger)index script:(NSString *)script {
+    if (![self isValidIndex:index]) return;
     _appleScriptsList[index][@"script"] = script;
 }
 
-- (void)setTitleAtIndex:(NSUInteger)index title:(NSString *)title {
+- (void)setTitleAtIndex:(NSInteger)index title:(NSString *)title {
+    if (![self isValidIndex:index]) return;
     _appleScriptsList[index][@"title"] = title;
 }
 
@@ -103,7 +116,8 @@
     [_appleScriptsList addObject:array];
 }
 
-- (void)removeAtIndex:(NSUInteger)index {
+- (void)removeAtIndex:(NSInteger)index {
+    if (![self isValidIndex:index]) return;
     [_appleScriptsList removeObjectAtIndex:index];
 }
 
