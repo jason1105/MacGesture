@@ -86,6 +86,25 @@ static NSUserDefaults *defaults;
         }
     }
 
+    // Core initialization
+    //
+    // This has to happen before the Accessibility check below. That check's
+    // alert used to run *modally* right here, which blocked the rest of
+    // -applicationDidFinishLaunching: for as long as the alert was up — so
+    // when the permission was missing, the status bar item was never created
+    // and gestures were never wired up. MacGesture is an LSUIElement app, so
+    // the alert has no Dock icon to surface it and can sit unnoticed behind
+    // other windows, leaving the app looking dead. Set up everything that
+    // does not depend on the permission first.
+
+    windowController = [CanvasWindowController new];
+    direction = [NSMutableString string];
+    _enabled = YES;
+
+    [BWFilter compatibleProcedureWithPreviousVersionBlockRules];
+
+    [self updateStatusBarItem];
+
     // Accessibility permission check & alert
 
     CGEventMask eventMask = CGEventMaskBit(kCGEventRightMouseDown) | CGEventMaskBit(kCGEventRightMouseDragged) |
@@ -118,17 +137,21 @@ static NSUserDefaults *defaults;
                 "Privacy → Privacy → Accessibility section to enable it for MacGesture.", nil),
             NSLocalizedString(@"If it's already enabled but gestures aren't "
                 "working properly, please re-open MacGesture.", nil)];
-        __unused NSModalResponse response = [alert runModal];
+        [alert addButtonWithTitle:NSLocalizedString(@"Open System Settings", nil)];
+        [alert addButtonWithTitle:NSLocalizedString(@"Later", nil)];
+
+        // Presented asynchronously so it cannot block the remainder of
+        // -applicationDidFinishLaunching:. Activating first matters as well:
+        // an LSUIElement app has no Dock icon, so an alert raised while the
+        // app is inactive can end up buried behind other windows.
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [NSApp activateIgnoringOtherApps:YES];
+            if ([alert runModal] == NSAlertFirstButtonReturn)
+                [[NSWorkspace sharedWorkspace] openURL:[NSURL URLWithString:
+                    @"x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"]];
+        });
         // FIXME: Dynamic checking & registration to events
     }
-
-    windowController = [CanvasWindowController new];
-    direction = [NSMutableString string];
-    _enabled = YES;
-
-    [BWFilter compatibleProcedureWithPreviousVersionBlockRules];
-
-    [self updateStatusBarItem];
 
     [center setSuspended:NO];
     [center addObserver:self selector:@selector(receiveOpenPreferencesNotification:)
