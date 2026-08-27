@@ -331,301 +331,274 @@ kbd {
 
 <body>
 
-<h1 id="toc_0">MacGesture</h1>
-
-<p><img src="https://raw.githubusercontent.com/MacGesture/MacGesture/master/logo.png" alt="logo"></p>
-
+<h1 id="macgesture">MacGesture</h1>
 <p>Configurable global mouse gestures for macOS.</p>
-
 <blockquote>
-<p>You can read this <code>README</code> file in <strong>About</strong> section in App Preferences.</p>
+<p>This is the community-maintained fork at <a
+href="https://github.com/jason1105/MacGesture">jason1105/MacGesture</a>,
+kept working on recent macOS releases. Original project by <a
+href="https://github.com/xcodebuild">CodeFalling</a>, GPL-3.0.</p>
 </blockquote>
-
-<h2 id="toc_1">Installation</h2>
-
-<h3 id="toc_2">Automatic Update</h3>
-
-<p>MacGesture will regularly check for updates and prompt you when new version is available. 👍</p>
-
-<h3 id="toc_3">Manually</h3>
-
-<p>Download the latese release bundle from <a href="https://github.com/MacGesture/MacGesture/releases">GitHub releases</a> page.</p>
-
-<h3 id="toc_4">Homebrew</h3>
-
-<p>Simply use <code>brew install --cask macgesture</code>. 🙌</p>
-
-<h2 id="toc_5">Features</h2>
-
+<h2 id="features">Features</h2>
 <ul>
 <li>Global mouse gestures recognition</li>
 <li>Configurable shortcut invocation by gesture</li>
 <li>App filtering based on bundle identifiers</li>
 </ul>
-
-<h2 id="toc_6">Gestures Format</h2>
-
+<h2 id="gestures-format">Gestures Format</h2>
 <table>
 <thead>
 <tr>
 <th>Gesture</th>
-<th style="text-align: center">Acronym</th>
+<th style="text-align: center;">Acronym</th>
 </tr>
 </thead>
-
 <tbody>
 <tr>
 <td>Move Left</td>
-<td style="text-align: center"><code>L</code></td>
+<td style="text-align: center;"><code>L</code></td>
 </tr>
 <tr>
 <td>Move Up</td>
-<td style="text-align: center"><code>U</code></td>
+<td style="text-align: center;"><code>U</code></td>
 </tr>
 <tr>
 <td>Move Right</td>
-<td style="text-align: center"><code>R</code></td>
+<td style="text-align: center;"><code>R</code></td>
 </tr>
 <tr>
 <td>Move Down</td>
-<td style="text-align: center"><code>D</code></td>
+<td style="text-align: center;"><code>D</code></td>
 </tr>
 <tr>
 <td>Left Button</td>
-<td style="text-align: center"><code>Z</code></td>
+<td style="text-align: center;"><code>Z</code></td>
 </tr>
 <tr>
 <td>Wheel Up</td>
-<td style="text-align: center"><code>u</code></td>
+<td style="text-align: center;"><code>u</code></td>
 </tr>
 <tr>
 <td>Wheel Dp</td>
-<td style="text-align: center"><code>d</code></td>
+<td style="text-align: center;"><code>d</code></td>
 </tr>
 </tbody>
 </table>
-
-<p>Gestures can contain wildcard matching (<code>?</code> and <code>*</code>).</p>
-
+<p>Gestures can contain wildcard matching (<code>?</code> and
+<code>*</code>).</p>
 <p>The first rule matching will take effect.</p>
-
-<p><code>Z</code> is the acronym of pinyin of <code>左</code> which means “left” in English. So to distinguish <em>clicking the left mouse button</em> from <em>dragging your mouse to the left</em>, we chose letter <code>Z</code>.</p>
-
-<p>Wheel directions may vary according to system configuration (Natural scroll direction setting) or some system tweaks (Karabiner&#39;s Reverse Vertical Scrolling, for example).</p>
-
-<h2 id="toc_7">Known Issues</h2>
-
-<h3 id="toc_8">Right click does not work in some Java applications</h3>
-
-<p>An imperfect fix:
-Take WebStorm for example, open Preferences, then KeyMap, set the shortcut of “Show Context Menu” to <code>Button3 Click</code>.</p>
-
-<h3 id="toc_9">Cannot assign some system-wide shortcuts to rules</h3>
-
-<p>Reason:
-macOS respond to system-wide shortcuts before MacGesture.</p>
-
-<p>Fix:
-Disable the shortcut first (for example in System Preferences → Keyboard → Shortcuts), then assign the shortcut in MacGesture, and re-enable the shortcut.</p>
-
-<p>Caveats:
-Some shortcuts still don&#39;t work with the fix above. When you are encountering this, here are two possible solutions:</p>
-
+<p><code>Z</code> is the acronym of pinyin of <code>左</code> which
+means “left” in English. So to distinguish <em>clicking the left mouse
+button</em> from <em>dragging your mouse to the left</em>, we chose
+letter <code>Z</code>.</p>
+<p>Wheel directions may vary according to system configuration (Natural
+scroll direction setting) or some system tweaks (Karabiner's Reverse
+Vertical Scrolling, for example).</p>
+<h2 id="known-issues">Known Issues</h2>
+<h3 id="right-click-does-not-work-in-some-java-applications">Right click
+does not work in some Java applications</h3>
+<p>An imperfect fix: Take WebStorm for example, open Preferences, then
+KeyMap, set the shortcut of “Show Context Menu” to
+<code>Button3 Click</code>.</p>
+<h3 id="cannot-assign-some-system-wide-shortcuts-to-rules">Cannot assign
+some system-wide shortcuts to rules</h3>
+<p>Reason: macOS respond to system-wide shortcuts before MacGesture.</p>
+<p>Fix: Disable the shortcut first (for example in System Settings →
+Keyboard → Keyboard Shortcuts), then assign the shortcut in MacGesture,
+and re-enable the shortcut.</p>
+<p>Caveats: Some shortcuts still don't work with the fix above. When you
+are encountering this, here are two possible solutions:</p>
 <ul>
 <li>Change them to others (e.g. <code>⌃0</code>, <code>⌃9</code>).</li>
 <li>Tick “Invert Fn When Control Is Pressed” option.</li>
 </ul>
-
-<h2 id="toc_10">Tips</h2>
-
-<h3 id="toc_11">Basic gestures</h3>
-
-<p>The following table covers probably the most basic scenario of usage:</p>
-
+<h3 id="gestures-stop-working-after-updating-the-app">Gestures stop
+working after updating the app</h3>
+<p>Builds are currently ad-hoc signed, so macOS treats each update as a
+different app and silently voids the Accessibility permission — the
+switch in System Settings still looks enabled, but the app is not
+actually trusted.</p>
+<p>Open the Terminal app and run:</p>
+<pre class="shell"><code>tccutil reset Accessibility com.codefalling.MacGesture</code></pre>
+<p>then relaunch MacGesture and grant the permission again. Toggling the
+existing switch off and on does not work; the stale entry has to be
+removed.</p>
+<h2 id="tips">Tips</h2>
+<h3 id="basic-gestures">Basic gestures</h3>
+<p>The following table covers probably the most basic scenario of
+usage:</p>
 <table>
 <thead>
 <tr>
-<th style="text-align: center">Gesture</th>
-<th style="text-align: left">Filter</th>
-<th style="text-align: center">Action</th>
-<th style="text-align: center">Note</th>
-<th style="text-align: center">⚡️</th>
+<th style="text-align: center;">Gesture</th>
+<th style="text-align: left;">Filter</th>
+<th style="text-align: center;">Action</th>
+<th style="text-align: center;">Note</th>
+<th style="text-align: center;">⚡️</th>
 </tr>
 </thead>
-
 <tbody>
 <tr>
-<td style="text-align: center"><code>D</code></td>
-<td style="text-align: left"><code>*safari</code>&#124;<code>*chrome</code></td>
-<td style="text-align: center">⌘T</td>
-<td style="text-align: center">New Tab</td>
-<td style="text-align: center">–</td>
+<td style="text-align: center;"><code>D</code></td>
+<td
+style="text-align: left;"><code>*safari</code>|<code>*chrome</code></td>
+<td style="text-align: center;">⌘T</td>
+<td style="text-align: center;">New Tab</td>
+<td style="text-align: center;">–</td>
 </tr>
 <tr>
-<td style="text-align: center"><code>DR</code></td>
-<td style="text-align: left"><code>*safari</code>&#124;<code>*chrome</code></td>
-<td style="text-align: center">⌘W</td>
-<td style="text-align: center">Close</td>
-<td style="text-align: center">–</td>
+<td style="text-align: center;"><code>DR</code></td>
+<td
+style="text-align: left;"><code>*safari</code>|<code>*chrome</code></td>
+<td style="text-align: center;">⌘W</td>
+<td style="text-align: center;">Close</td>
+<td style="text-align: center;">–</td>
 </tr>
 </tbody>
 </table>
-
-<p>By setting these rules, you can empower mouse gestures to open new and close currently focused tabs in Sarari and Chrome Browsers. Simply:</p>
-
+<p>By setting these rules, you can empower mouse gestures to open new
+and close currently focused tabs in Sarari and Chrome Browsers.
+Simply:</p>
 <ul>
 <li>press the right button, drag mouse down, and release
-
 <ul>
 <li>opens a new tab in the current browser window</li>
 </ul></li>
-<li>press the right button, drag mouse down, then to the right, and release
-
+<li>press the right button, drag mouse down, then to the right, and
+release
 <ul>
-<li>this will result in closing the currently focused tab in the active browser window</li>
+<li>this will result in closing the currently focused tab in the active
+browser window</li>
 </ul></li>
 </ul>
-
 <p>How neat! 🙌</p>
-
-<h3 id="toc_12">Mouse scroll gesture example</h3>
-
-<p>Now, to quickly cycle between the selected tabs even without releasing the right mouse button, you can set the gesture to be triggered on every match using the “⚡️” checkbox at the end of the Rule line.</p>
-
+<h3 id="mouse-scroll-gesture-example">Mouse scroll gesture example</h3>
+<p>Now, to quickly cycle between the selected tabs even without
+releasing the right mouse button, you can set the gesture to be
+triggered on every match using the “⚡️” checkbox at the end of the Rule
+line.</p>
 <p>So by defining the following rules:</p>
-
 <table>
 <thead>
 <tr>
-<th style="text-align: center">Gesture</th>
-<th style="text-align: left">Filter</th>
-<th style="text-align: center">Action</th>
-<th style="text-align: center">Note</th>
-<th style="text-align: center">⚡️</th>
+<th style="text-align: center;">Gesture</th>
+<th style="text-align: left;">Filter</th>
+<th style="text-align: center;">Action</th>
+<th style="text-align: center;">Note</th>
+<th style="text-align: center;">⚡️</th>
 </tr>
 </thead>
-
 <tbody>
 <tr>
-<td style="text-align: center"><code>U*u</code></td>
-<td style="text-align: left"><code>*safari</code>&#124;<code>*chrome</code></td>
-<td style="text-align: center">⇧⌘[</td>
-<td style="text-align: center">Prev Tab</td>
-<td style="text-align: center">☑️</td>
+<td style="text-align: center;"><code>U*u</code></td>
+<td
+style="text-align: left;"><code>*safari</code>|<code>*chrome</code></td>
+<td style="text-align: center;">⇧⌘[</td>
+<td style="text-align: center;">Prev Tab</td>
+<td style="text-align: center;">☑️</td>
 </tr>
 <tr>
-<td style="text-align: center"><code>U*d</code></td>
-<td style="text-align: left"><code>*safari</code>&#124;<code>*chrome</code></td>
-<td style="text-align: center">⇧⌘]</td>
-<td style="text-align: center">Next Tab</td>
-<td style="text-align: center">☑️</td>
+<td style="text-align: center;"><code>U*d</code></td>
+<td
+style="text-align: left;"><code>*safari</code>|<code>*chrome</code></td>
+<td style="text-align: center;">⇧⌘]</td>
+<td style="text-align: center;">Next Tab</td>
+<td style="text-align: center;">☑️</td>
 </tr>
 </tbody>
 </table>
-
 <p>you can simply:</p>
-
 <ul>
-<li>right click, drag mouse upwards, and every <code>u</code> (mouse wheel scroll up) triggers a <strong>Prev Tab</strong> action,</li>
-<li>right click, drag mouse upwards, and every <code>d</code> (mouse wheel scroll down) triggers a <strong>Next Tab</strong> action.</li>
+<li>right click, drag mouse upwards, and every <code>u</code> (mouse
+wheel scroll up) triggers a <strong>Prev Tab</strong> action,</li>
+<li>right click, drag mouse upwards, and every <code>d</code> (mouse
+wheel scroll down) triggers a <strong>Next Tab</strong> action.</li>
 </ul>
-
-<p>Switching between multiple tabs in the browser is now a piece of cake! 😎</p>
-
-<h3 id="toc_13">Exporting and importing MacGesture preferences</h3>
-
-<h4 id="toc_14">Recommended way</h4>
-
-<p>Use “Import” and “Export” buttons in the <strong>General</strong> Panel.</p>
-
-<h4 id="toc_15">Geek-ish way</h4>
-
+<p>Switching between multiple tabs in the browser is now a piece of
+cake! 😎</p>
+<h3 id="exporting-and-importing-macgesture-preferences">Exporting and
+importing MacGesture preferences</h3>
+<h4 id="recommended-way">Recommended way</h4>
+<p>Use “Import” and “Export” buttons in the <strong>General</strong>
+Panel.</p>
+<h4 id="geek-ish-way">Geek-ish way</h4>
 <p>Open the <em>Terminal</em> app, Do this in your old computer:</p>
-
-<div><pre><code class="language-shell">defaults read com.codefalling.MacGesture backup.plist</code></pre></div>
-
+<pre class="shell"><code>defaults read com.codefalling.MacGesture backup.plist</code></pre>
 <p>And then copy that file to your new computer, then:</p>
-
-<div><pre><code class="language-shell">defaults import com.codefalling.MacGesture backup.plist</code></pre></div>
-
-<p>All settings should be successfully brought over. If that&#39;s not the case please file an issue.</p>
-
-<h3 id="toc_16">Excluding an app in a certain rule</h3>
-
-<p>You can prepend <code>!</code>, then the app you want to exclude (still wildcard).</p>
-
+<pre class="shell"><code>defaults import com.codefalling.MacGesture backup.plist</code></pre>
+<p>All settings should be successfully brought over. If that's not the
+case please file an issue.</p>
+<h3 id="excluding-an-app-in-a-certain-rule">Excluding an app in a
+certain rule</h3>
+<p>You can prepend <code>!</code>, then the app you want to exclude
+(still wildcard).</p>
 <p>For example, the original one:</p>
-
 <table>
 <thead>
 <tr>
-<th style="text-align: center">Gesture</th>
-<th style="text-align: left">Filter</th>
-<th style="text-align: center">Action</th>
-<th style="text-align: center">Note</th>
-<th style="text-align: center">⚡️</th>
+<th style="text-align: center;">Gesture</th>
+<th style="text-align: left;">Filter</th>
+<th style="text-align: center;">Action</th>
+<th style="text-align: center;">Note</th>
+<th style="text-align: center;">⚡️</th>
 </tr>
 </thead>
-
 <tbody>
 <tr>
-<td style="text-align: center"><code>U*d</code></td>
-<td style="text-align: left"><code>*</code></td>
-<td style="text-align: center">⇧⌘]</td>
-<td style="text-align: center">Next Tab</td>
-<td style="text-align: center">☑️</td>
+<td style="text-align: center;"><code>U*d</code></td>
+<td style="text-align: left;"><code>*</code></td>
+<td style="text-align: center;">⇧⌘]</td>
+<td style="text-align: center;">Next Tab</td>
+<td style="text-align: center;">☑️</td>
 </tr>
 </tbody>
 </table>
-
 <p>Then, in order to exclude Safari, change this to:</p>
-
 <table>
 <thead>
 <tr>
-<th style="text-align: center">Gesture</th>
-<th style="text-align: left">Filter</th>
-<th style="text-align: center">Action</th>
-<th style="text-align: center">Note</th>
-<th style="text-align: center">⚡️</th>
+<th style="text-align: center;">Gesture</th>
+<th style="text-align: left;">Filter</th>
+<th style="text-align: center;">Action</th>
+<th style="text-align: center;">Note</th>
+<th style="text-align: center;">⚡️</th>
 </tr>
 </thead>
-
 <tbody>
 <tr>
-<td style="text-align: center"><code>U*d</code></td>
-<td style="text-align: left"><code>*</code>&#124;<code>!*safari</code></td>
-<td style="text-align: center">⇧⌘]</td>
-<td style="text-align: center">Next Tab</td>
-<td style="text-align: center">☑️</td>
+<td style="text-align: center;"><code>U*d</code></td>
+<td style="text-align: left;"><code>*</code>|<code>!*safari</code></td>
+<td style="text-align: center;">⇧⌘]</td>
+<td style="text-align: center;">Next Tab</td>
+<td style="text-align: center;">☑️</td>
 </tr>
 </tbody>
 </table>
-
 <p>Then you will experience the expected behaviour.</p>
-
-<h2 id="toc_17">Found a Bug?</h2>
-
-<p>Feel free to open <a href="https://github.com/MacGesture/MacGesture/issues">an issue on GitHub</a>! 👍</p>
-
-<h2 id="toc_18">Contributors</h2>
-
+<h2 id="found-a-bug">Found a Bug?</h2>
+<p>Open <a href="https://github.com/jason1105/MacGesture/issues">an
+issue on GitHub</a> 👍</p>
+<h2 id="contributors">Contributors</h2>
+<p>Original project:</p>
 <ul>
-<li><a href="https://github.com/xcodebuild">CodeFalling</a> – original author</li>
-<li><a href="https://github.com/username0x0a">username0x0a</a> – maintainer</li>
+<li><a href="https://github.com/xcodebuild">CodeFalling</a> – original
+author</li>
+<li><a href="https://github.com/username0x0a">username0x0a</a> –
+maintainer</li>
 <li><a href="https://github.com/jiegec">jiegec</a></li>
 <li><a href="https://github.com/zhangciwu">zhangciwu</a></li>
 </ul>
-
-<h2 id="toc_19">License</h2>
-
-<p>This project is made under <a href="https://en.wikipedia.org/wiki/GNU_General_Public_License">GNU General Public License</a>.</p>
-
-<p>App icon &amp; other icons designed by <a href="https://github.com/username0x0a">username0x0a</a>.</p>
-
-
-
-
+<p>This fork:</p>
+<ul>
+<li><a href="https://github.com/jason1105">jason1105</a> – macOS 26
+compatibility work</li>
+</ul>
+<h2 id="license">License</h2>
+<p>This project is made under the <a
+href="https://en.wikipedia.org/wiki/GNU_General_Public_License">GNU
+General Public License v3</a>.</p>
+<p>App icon &amp; other icons designed by <a
+href="https://github.com/username0x0a">username0x0a</a>.</p>
 </body>
 
 </html>
