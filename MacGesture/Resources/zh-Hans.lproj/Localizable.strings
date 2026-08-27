@@ -5,7 +5,7 @@
 "About" = "关于";
 
 /* No comment provided by engineer. */
-"Accessibility permission granted, gestures are now active." = "Accessibility permission granted, gestures are now active.";
+"Accessibility permission granted, gestures are now active." = "已获得辅助功能权限，手势现已生效。";
 
 /* No comment provided by engineer. */
 "AppleScript" = "AppleScript";
@@ -80,7 +80,7 @@
 "MacGesture is placed in an unsupported location" = "MacGesture 放置在不受支持的位置";
 
 /* No comment provided by engineer. */
-"MacGesture is ready" = "MacGesture is ready";
+"MacGesture is ready" = "MacGesture 已就绪";
 
 /* No comment provided by engineer. */
 "MacGesture processes your mouse events, thus requires the Accessibility permission to work properly" = "MacGesture 处理您的鼠标事件，因此需要辅助功能权限才能正常工作";

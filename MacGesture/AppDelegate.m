@@ -226,6 +226,10 @@ static NSAlert *accessibilityAlert;
             AppDelegate *strongSelf = weakSelf;
             if (!strongSelf) {
                 [timer invalidate];
+                // Clear the static too, otherwise the guard at the top of
+                // -startWatchingForAccessibilityPermission would keep seeing an
+                // invalidated timer and refuse to ever start watching again.
+                accessibilityWatchTimer = nil;
                 return;
             }
 
@@ -250,7 +254,12 @@ static NSAlert *accessibilityAlert;
     // The "please grant the permission" alert, if it is still up, is now stale.
     // Ending its modal session makes runModal return NSModalResponseStop, so the
     // "Open System Settings" branch correctly does not fire.
-    if (accessibilityAlert.window.isVisible)
+    //
+    // -stopModal ends whichever modal session is on top, and "visible" is not
+    // the same as "is the current session", so check that our alert really owns
+    // the session before ending it — otherwise a nested modal put up by some
+    // other code path would be the one dismissed.
+    if (accessibilityAlert && [NSApp modalWindow] == accessibilityAlert.window)
         [NSApp stopModal];
     accessibilityAlert = nil;
 
