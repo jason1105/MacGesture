@@ -565,7 +565,18 @@ static CGEventRef mouseEventCallback(CGEventTapProxy proxy, CGEventType type, CG
                 }
                 mouseDraggedEvent = event;
                 CFRetain(mouseDraggedEvent);
-                
+
+                // NOTE: updateDirections() can re-enter this callback.
+                // It reaches addDirection(), which calls handleGesture(NO) for
+                // "trigger on every match" rules; an AppleScript rule then runs
+                // synchronously and spins the run loop, letting a real mouse event
+                // back into this function. The re-entrant pass may release
+                // mouseDownEvent / mouseDraggedEvent and NULL them out.
+                //
+                // This is only safe because the call below is the *last* reference
+                // to those statics in this case — nothing after it reads them.
+                // Do not add code that touches them after this point without first
+                // taking a local snapshot, the way kCGEventRightMouseUp does.
                 [windowController handleMouseEvent:mouseEvent];
                 updateDirections(mouseEvent);
             }
@@ -576,33 +587,49 @@ static CGEventRef mouseEventCallback(CGEventTapProxy proxy, CGEventType type, CG
                 return event;
             }
             
-            if (mouseDownEvent) {
+            // Close the gesture and take ownership of the pending events *before*
+            // running anything below that can re-enter this callback.
+            //
+            // handleGesture() executes the user's action, and for an AppleScript
+            // rule that is -[NSAppleScript executeAndReturnError:] running
+            // synchronously, which spins the run loop. Any real mouse event the user
+            // produces while the script runs is delivered to this same callback
+            // re-entrantly. The re-entrant pass used to release these events and NULL
+            // the statics out from under us, so when the outer pass resumed it called
+            // CFRelease() on a NULL — the crash in issue #35.
+            //
+            // Clearing shouldShow up front also turns the re-entrant pass into a
+            // no-op for the dragged / up / scroll / left-down cases, which all bail
+            // out on !shouldShow.
+            CGEventRef downEvent = mouseDownEvent;
+            CGEventRef draggedEvent = mouseDraggedEvent;
+            mouseDownEvent = mouseDraggedEvent = NULL;
+            shouldShow = NO;
+
+            if (downEvent) {
                 mouseEvent = [NSEvent eventWithCGEvent:event];
                 [windowController handleMouseEvent:mouseEvent];
                 updateDirections(mouseEvent);
                 if (handleGesture(true)) {
                     eventTriggered = YES;
                 }
-                
+
                 if (!eventTriggered) {
                     CGPoint location = CGEventGetLocation(event);
-                    CGEventSetLocation(mouseDownEvent, location);
-                    CGEventPost(kCGSessionEventTap, mouseDownEvent);
-       
+                    CGEventSetLocation(downEvent, location);
+                    CGEventPost(kCGSessionEventTap, downEvent);
+
                     // Fix issue #70 dunno why here
                     usleep(1000);
                     CGEventPost(kCGSessionEventTap, event);
                 }
-                CFRelease(mouseDownEvent);
+                CFRelease(downEvent);
             }
-            
-            if (mouseDraggedEvent) {
-                CFRelease(mouseDraggedEvent);
+
+            if (draggedEvent) {
+                CFRelease(draggedEvent);
             }
-            
-            mouseDownEvent = mouseDraggedEvent = NULL;
-            shouldShow = NO;
-            
+
             resetDirection();
             break;
         }
@@ -616,6 +643,9 @@ static CGEventRef mouseEventCallback(CGEventTapProxy proxy, CGEventType type, CG
             if (unnaturalDirection) {} // delta *= -1;
             DebugLog(@"scrollWheel delta:%f", delta);
             
+            // As in the dragged case, the addDirection() calls below can re-enter
+            // this callback and invalidate mouseDownEvent / mouseDraggedEvent.
+            // Nothing after them may read those statics without a local snapshot.
             NSTimeInterval current = [NSDate timeIntervalSinceReferenceDate];
             if (current - lastMouseWheelEventTime > 0.3) {
                 if (delta > 0) {
@@ -642,6 +672,9 @@ static CGEventRef mouseEventCallback(CGEventTapProxy proxy, CGEventType type, CG
             if (!shouldShow || !mouseDownEvent) {
                 return event;
             }
+            // addDirection() can re-enter this callback (see the note in the
+            // dragged case). mouseDownEvent / mouseDraggedEvent must not be read
+            // after this point without taking a local snapshot first.
             addDirection('Z', true);
             eventTriggered = YES;
             break;
