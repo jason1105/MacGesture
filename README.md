@@ -72,6 +72,38 @@ MacGesture needs the Accessibility permission to read mouse events. On first lau
 will ask for it and offer to open the relevant System Settings pane directly. Once you
 grant it, gestures activate immediately — no restart required.
 
+### Building from source
+
+Requirements: macOS 13 or newer, and a full Xcode install (verified with Xcode 26.6).
+Dependencies (Sparkle, ShortcutRecorder) are fetched via Swift Package Manager on the
+first build, so you need network access.
+
+```shell
+git clone https://github.com/jason1105/MacGesture.git
+cd MacGesture
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild build \
+  -project MacGesture.xcodeproj \
+  -scheme MacGesture \
+  -configuration Debug \
+  -derivedDataPath /tmp/mg-build
+```
+
+The finished app ends up at `/tmp/mg-build/Build/Products/Debug/MacGesture.app`.
+
+> **⚠️ Rebuilding locally voids the Accessibility permission — every single time.**
+>
+> The ad-hoc warning above covers downloaded updates, but it applies to your own
+> builds too: every rebuild produces a new code signature, so dropping a freshly
+> built copy into `/Applications` silently revokes the Accessibility permission —
+> the System Settings toggle still shows enabled while the app is no longer trusted.
+> After **every** rebuild, run:
+>
+> ```shell
+> tccutil reset Accessibility com.codefalling.MacGesture
+> ```
+>
+> then relaunch MacGesture and grant the permission again.
+
 ## Still open in this fork
 
 Things that are not fixed yet, listed here so they are not a surprise:
