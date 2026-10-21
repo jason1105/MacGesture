@@ -1,6 +1,6 @@
 //
-//  MenuBarAppTests.m
-//  MenuBarAppTests
+//  MacGestureTests.m
+//  MacGestureTests
 //
 //  Created by Charles Ross on 11/2/13.
 //  Copyright (c) 2013 MacGesture. All rights reserved.
@@ -8,27 +8,40 @@
 
 #import <XCTest/XCTest.h>
 
-@interface MenuBarAppTests : XCTestCase
+#import "AppDelegate.h"
+
+// Issue #42: holding Control while pressing the right button temporarily
+// disables the gesture for that whole drag. The decision is made from the
+// flags of the right-mouse-down event alone, so pressing or releasing Control
+// mid-drag cannot interrupt a gesture that already started.
+@interface MGControlSuppressionTests : XCTestCase
 
 @end
 
-@implementation MenuBarAppTests
+@implementation MGControlSuppressionTests
 
-- (void)setUp
+- (void)testControlAtRightMouseDownSuppressesGestureForDrag
 {
-    [super setUp];
-    // Put setup code here. This method is called before the invocation of each test method in the class.
+    XCTAssertTrue(MGShouldSuppressGestureForDrag(kCGEventFlagMaskControl));
 }
 
-- (void)tearDown
+- (void)testControlTogetherWithOtherModifiersStillSuppresses
 {
-    // Put teardown code here. This method is called after the invocation of each test method in the class.
-    [super tearDown];
+    XCTAssertTrue(MGShouldSuppressGestureForDrag(
+        kCGEventFlagMaskControl | kCGEventFlagMaskShift | kCGEventFlagMaskCommand));
 }
 
-- (void)testExample
+- (void)testNoModifiersDoesNotSuppress
 {
-    XCTFail(@"No implementation for \"%s\"", __PRETTY_FUNCTION__);
+    XCTAssertFalse(MGShouldSuppressGestureForDrag(0));
+}
+
+- (void)testOtherModifiersAloneDoNotSuppress
+{
+    XCTAssertFalse(MGShouldSuppressGestureForDrag(kCGEventFlagMaskShift));
+    XCTAssertFalse(MGShouldSuppressGestureForDrag(kCGEventFlagMaskCommand));
+    XCTAssertFalse(MGShouldSuppressGestureForDrag(kCGEventFlagMaskAlternate));
+    XCTAssertFalse(MGShouldSuppressGestureForDrag(kCGEventFlagMaskSecondaryFn));
 }
 
 @end

@@ -65,6 +65,7 @@
 		1381E4BD1824E7E800E815F5 /* AppDelegate.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; lineEnding = 0; path = AppDelegate.h; sourceTree = "<group>"; usesTabs = 0; };
 		1381E4BE1824E7E800E815F5 /* AppDelegate.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; lineEnding = 0; path = AppDelegate.m; sourceTree = "<group>"; usesTabs = 0; };
 		1381E4C31824E7E800E815F5 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		1381E4C91824E7E800E815F5 /* MacGestureTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = MacGestureTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		1381E4D11824E7E800E815F5 /* MacGestureTests-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "MacGestureTests-Info.plist"; sourceTree = "<group>"; };
 		1381E4D51824E7E800E815F5 /* MacGestureTests.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; lineEnding = 0; path = MacGestureTests.m; sourceTree = "<group>"; usesTabs = 0; };
 		264180FBF385AF13387254C2 /* SRRecorderControlWithTagid.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; lineEnding = 0; path = SRRecorderControlWithTagid.m; sourceTree = "<group>"; usesTabs = 0; };
@@ -166,6 +167,7 @@
 			isa = PBXGroup;
 			children = (
 				EF4E7293249AAF960095B982 /* MacGesture.app */,
+				1381E4C91824E7E800E815F5 /* MacGestureTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -343,6 +345,7 @@
 			);
 			name = MacGestureTests;
 			productName = MacGestureTests;
+			productReference = 1381E4C91824E7E800E815F5 /* MacGestureTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
