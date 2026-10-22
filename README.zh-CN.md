@@ -63,6 +63,37 @@ Homebrew 的 `macgesture` cask 目前安装的仍是**上游**的 3.2.0 版本�
 MacGesture 需要辅助功能权限才能读取鼠标事件。首次启动时它会请求该权限，
 并提供一个直达对应系统设置面板的按钮。**授权后手势立即生效，无需重启。**
 
+### 从源码构建
+
+需要 macOS 13 及以上版本，以及完整版 Xcode（已在 Xcode 26.6 上验证）。
+依赖（Sparkle、ShortcutRecorder）在首次构建时经 Swift Package Manager 拉取，
+需要联网。
+
+```shell
+git clone https://github.com/jason1105/MacGesture.git
+cd MacGesture
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild build \
+  -project MacGesture.xcodeproj \
+  -scheme MacGesture \
+  -configuration Debug \
+  -derivedDataPath /tmp/mg-build
+```
+
+构建产物位于 `/tmp/mg-build/Build/Products/Debug/MacGesture.app`。
+
+> **⚠️ 本地重新编译必然静默作废辅助功能授权——每一次都如此。**
+>
+> 上面 ad-hoc 警告说的是下载的更新，但它同样适用于你自己编译的版本：每次
+> 重新编译签名都会变化，把新编译的副本放进 `/Applications` 后，辅助功能授权
+> 会被 macOS 静默作废——系统设置里的开关仍显示为开，app 实际已不被信任。
+> **每一次**重新编译后都要执行：
+>
+> ```shell
+> tccutil reset Accessibility com.codefalling.MacGesture
+> ```
+>
+> 然后重新启动 MacGesture 并再次授权。
+
 ## 尚未解决的问题
 
 以下问题目前仍然存在，先说清楚免得你意外：
