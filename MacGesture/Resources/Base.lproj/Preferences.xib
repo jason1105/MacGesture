@@ -131,9 +131,9 @@
                                 </connections>
                             </popUpButton>
                             <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="mgQ-44-lbl">
-                                <rect key="frame" x="348" y="54" width="156" height="32"/>
+                                <rect key="frame" x="348" y="53" width="156" height="17"/>
                                 <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
-                                <textFieldCell key="cell" sendsActionOnEndEditing="YES" alignment="center" title="Temporarily disable gestures" id="mgQ-44-lbl-C">
+                                <textFieldCell key="cell" sendsActionOnEndEditing="YES" alignment="center" title="Temporarily disable with" id="mgQ-44-lbl-C">
                                     <font key="font" metaFont="system"/>
                                     <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
                                     <color key="backgroundColor" name="controlColor" catalog="System" colorSpace="catalog"/>
