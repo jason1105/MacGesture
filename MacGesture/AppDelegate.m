@@ -77,6 +77,16 @@ static BOOL MGRunningUnderXCTest(void) {
     [defaults registerDefaults:defaultPrefs];
     [defaults synchronize];
 
+    // Issue #44: read the configured suppress modifier once and keep the cache
+    // fresh afterwards — the event tap must not read NSUserDefaults per event.
+    // This also catches `defaults write` from outside the app.
+    MGRefreshSuppressGestureModifierCache();
+    [[NSNotificationCenter defaultCenter]
+        addObserver:self
+           selector:@selector(suppressModifierDefaultsDidChange:)
+               name:NSUserDefaultsDidChangeNotification
+             object:nil];
+
     // README prompt
 
     if (!hasRunBefore) {
@@ -318,6 +328,10 @@ static BOOL MGRunningUnderXCTest(void) {
 
 #pragma mark -
 
+- (void)suppressModifierDefaultsDidChange:(NSNotification *)notification {
+    MGRefreshSuppressGestureModifierCache();
+}
+
 - (void)workspaceSessionActiveChange:(NSNotification *)notification {
     BOOL nowActive = notification.name != NSWorkspaceSessionDidResignActiveNotification;
     NSLog(@"[WORKSPACE SESSION] Now active: %d", nowActive);
@@ -480,8 +494,37 @@ void resetDirection(void) {
     [direction setString:@""];
 }
 
+NSString *const MGSuppressGestureModifierDefaultsKey = @"suppressGestureModifier";
+
+// Cached mask of the configured suppress modifier. The event tap consults
+// this on every right-mouse-down, so the defaults database is never read
+// synchronously from the hot path — only by MGRefreshSuppressGestureModifier-
+// Cache() at launch, on NSUserDefaultsDidChangeNotification, and when the
+// Preferences popup changes the value.
+static CGEventFlags suppressGestureModifierMask = kCGEventFlagMaskCommand;
+
+CGEventFlags MGFlagMaskForSuppressModifier(NSString *modifierValue) {
+    if ([modifierValue isEqualToString:@"command"]) return kCGEventFlagMaskCommand;
+    if ([modifierValue isEqualToString:@"control"]) return kCGEventFlagMaskControl;
+    if ([modifierValue isEqualToString:@"option"]) return kCGEventFlagMaskAlternate;
+    if ([modifierValue isEqualToString:@"function"]) return kCGEventFlagMaskSecondaryFn;
+    if ([modifierValue isEqualToString:@"none"]) return 0;
+    // Absent or unrecognized: the #44 default, Command.
+    return kCGEventFlagMaskCommand;
+}
+
+BOOL MGShouldSuppressGestureForDragWithModifier(CGEventFlags flags, NSString *modifierValue) {
+    CGEventFlags mask = MGFlagMaskForSuppressModifier(modifierValue);
+    return mask != 0 && (flags & mask) == mask;
+}
+
+void MGRefreshSuppressGestureModifierCache(void) {
+    suppressGestureModifierMask = MGFlagMaskForSuppressModifier(
+        [[NSUserDefaults standardUserDefaults] stringForKey:MGSuppressGestureModifierDefaultsKey]);
+}
+
 BOOL MGShouldSuppressGestureForDrag(CGEventFlags flags) {
-    return (flags & kCGEventFlagMaskControl) != 0;
+    return suppressGestureModifierMask != 0 && (flags & suppressGestureModifierMask) == suppressGestureModifierMask;
 }
 
 // See https://developer.apple.com/library/mac/documentation/Carbon/Reference/QuartzEventServicesRef/#//apple_ref/c/tdef/CGEventTapCallBack

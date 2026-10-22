@@ -100,6 +100,12 @@
 /* Class = "NSButtonCell"; title = "Show Gesture Note"; ObjectID = "kHw-iF-xLb"; */
 "kHw-iF-xLb.title" = "Zobrazit název gesta";
 
+/* Class = "NSTextFieldCell"; title = "fn may also switch the input source"; ObjectID = "mgQ-44-hnt-C"; */
+"mgQ-44-hnt-C.title" = "fn může také přepnout zdroj vstupu";
+
+/* Class = "NSTextFieldCell"; title = "Temporarily disable gestures"; ObjectID = "mgQ-44-lbl-C"; */
+"mgQ-44-lbl-C.title" = "Dočasné vypnutí gest";
+
 /* Class = "NSTextFieldCell"; title = "code"; ObjectID = "mgw-z2-mZe"; */
 "mgw-z2-mZe.title" = "code";
 

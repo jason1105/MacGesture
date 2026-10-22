@@ -53,6 +53,7 @@
 @property(weak) IBOutlet NSButton *showIconInStatusBarButton;
 @property(weak) IBOutlet NSPopUpButton *languageComboBox;
 @property(weak) IBOutlet NSPopUpButton *previewPositionComboBox;
+@property(weak) IBOutlet NSPopUpButton *suppressModifierComboBox;
 
 @property(weak) IBOutlet NSColorWell *lineColorWell;
 @property(weak) IBOutlet NSColorWell *previewColorWell;

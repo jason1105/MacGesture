@@ -20,6 +20,8 @@
 	<false/>
 	<key>showIconInStatusBar</key>
 	<true/>
+	<key>suppressGestureModifier</key>
+	<string>command</string>
 	<key>showUIInWhateverApp</key>
 	<true/>
 	<key>showGestureNote</key>
