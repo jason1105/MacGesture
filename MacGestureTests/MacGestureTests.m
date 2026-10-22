@@ -119,3 +119,127 @@
 }
 
 @end
+
+// ============================================================================
+// Issue #45 cursor freeze fix: AppleScript rule actions must execute
+// asynchronously on a dedicated serial queue, off the CGEventTap callback
+// thread. All fixtures are injected in-memory only (archive round-trip via
+// initWithNsData:, KVC on the scripts backing store); nothing is persisted
+// to NSUserDefaults and no real user rule or script is modified.
+// ============================================================================
+
+#import "RulesList.h"
+#import "AppleScriptsList.h"
+
+// executeActionAt: is implemented in RulesList.m but not declared in the
+// public header; declare it here so tests can call the unit under test.
+@interface RulesList (MGFreezeFixTestAccess)
+- (bool)executeActionAt:(NSUInteger)index;
+@end
+
+static NSString *const kFreezeFixScriptId = @"mg-freeze-fix-test-script";
+
+@interface MGFreezeFixTests : XCTestCase
+@end
+
+@implementation MGFreezeFixTests {
+    AppleScriptsList *_scripts;
+    NSMutableArray *_savedScriptsStorage;
+    NSString *_markerPath;
+}
+
+- (void)setUp {
+    [super setUp];
+    _scripts = [AppleScriptsList sharedAppleScriptsList];
+    _savedScriptsStorage = [_scripts valueForKey:@"_appleScriptsList"];
+    _markerPath = [NSTemporaryDirectory() stringByAppendingPathComponent:
+        [NSString stringWithFormat:@"mg-freeze-fix-%@.marker",
+            [[NSProcessInfo processInfo] globallyUniqueString]]];
+}
+
+- (void)tearDown {
+    if (_savedScriptsStorage != nil) {
+        [_scripts setValue:_savedScriptsStorage forKey:@"_appleScriptsList"];
+    }
+    if (_markerPath != nil) {
+        [[NSFileManager defaultManager] removeItemAtPath:_markerPath error:NULL];
+    }
+    [super tearDown];
+}
+
+#pragma mark - Fixture injection (in-memory only)
+
+- (RulesList *)injectedRulesListWithSleepScript {
+    NSDictionary *scriptEntry = @{
+        @"id": kFreezeFixScriptId,
+        @"title": @"MGFreezeFixTests sleep script",
+        @"script": [NSString stringWithFormat:@"do shell script \"sleep 1; touch '%@'\"", _markerPath],
+    };
+    [_scripts setValue:[NSMutableArray arrayWithObject:scriptEntry]
+              forKey:@"_appleScriptsList"];
+    XCTAssertTrue([[_scripts getScriptById:kFreezeFixScriptId] length] > 0,
+                  @"script injection failed: getScriptById could not resolve the test script");
+
+    // Same shape addRuleWithDirection:... would build, loaded via the public
+    // in-memory loader so nothing is saved to defaults.
+    NSDictionary *rule = @{
+        @"direction": @"left",
+        @"filter": @"*",
+        @"filterType": @(FILTER_TYPE_WILDCARD),
+        @"actionType": @(ACTION_TYPE_APPLE_SCRIPT),
+        @"apple_script_id": kFreezeFixScriptId,
+        @"note": @"MGFreezeFixTests",
+        @"enabled": @(YES),
+    };
+    NSData *data = [NSKeyedArchiver archivedDataWithRootObject:@[rule]];
+    RulesList *rules = [[RulesList alloc] initWithNsData:data];
+    XCTAssertEqual([rules count], 1,
+                   @"rule injection failed: initWithNsData did not load the test rule");
+    return rules;
+}
+
+- (BOOL)markerExists {
+    return [[NSFileManager defaultManager] fileExistsAtPath:_markerPath];
+}
+
+- (void)drainRuleExecutionQueue {
+    dispatch_sync([RulesList ruleExecutionQueue], ^{ });
+}
+
+#pragma mark - Tests
+
+// executeActionAt: must return without waiting for the AppleScript to finish.
+- (void)testAppleScriptActionDoesNotBlockCallerThread {
+    RulesList *rules = [self injectedRulesListWithSleepScript];
+
+    NSDate *start = [NSDate date];
+    [rules executeActionAt:0];
+    NSTimeInterval elapsed = [[NSDate date] timeIntervalSinceDate:start];
+
+    XCTAssertTrue(elapsed < 0.5,
+                  @"executeActionAt: blocked the caller for %.3fs; AppleScript actions must run asynchronously",
+                  elapsed);
+    [self drainRuleExecutionQueue];
+}
+
+// The script must run on the serial rule-execution queue, not inline: hold
+// the queue with a gate, verify the script has not run when executeActionAt:
+// returns, then release and verify completion.
+- (void)testAppleScriptActionRunsOnRuleExecutionQueueAfterReturn {
+    RulesList *rules = [self injectedRulesListWithSleepScript];
+    dispatch_semaphore_t gate = dispatch_semaphore_create(0);
+    dispatch_async([RulesList ruleExecutionQueue], ^{
+        dispatch_semaphore_wait(gate, DISPATCH_TIME_FOREVER);
+    });
+
+    [rules executeActionAt:0];
+    XCTAssertFalse([self markerExists],
+                   @"script already executed when executeActionAt: returned; it must be queued, not run synchronously");
+
+    dispatch_semaphore_signal(gate);
+    [self drainRuleExecutionQueue]; // waits for gate block + sleep 1 script
+    XCTAssertTrue([self markerExists],
+                  @"script never executed; the async dispatch must still run the AppleScript");
+}
+
+@end
