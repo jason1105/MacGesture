@@ -83,4 +83,6 @@ typedef enum {
 
 + (RulesList *)sharedRulesList;
 
++ (dispatch_queue_t)ruleExecutionQueue;
+
 @end

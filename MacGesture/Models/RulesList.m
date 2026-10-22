@@ -143,27 +143,40 @@ static inline void pressKeyWithFlags(CGKeyCode virtualKey, CGEventFlags flags) {
     CFRelease(source);
 }
 
++ (dispatch_queue_t)ruleExecutionQueue {
+    static dispatch_queue_t queue;
+    static dispatch_once_t onceToken;
+    dispatch_once(&onceToken, ^{
+        queue = dispatch_queue_create("com.codefalling.MacGesture.rule-execution",
+                                      DISPATCH_QUEUE_SERIAL);
+    });
+    return queue;
+}
+
 - (bool)executeActionAt:(NSUInteger)index {
-    NSAppleScript *script;
     NSString *appleScriptId;
     NSString *appleScript;
-    NSDictionary *errorDict;
-    NSAppleEventDescriptor *returnDescriptor;
     switch ([self actionTypeAtIndex:index]) {
         case ACTION_TYPE_SHORTCUT:
             pressKeyWithFlags([self shortcutKeycodeAtIndex:index], [self shortcutFlagAtIndex:index]);
             break;
-        case ACTION_TYPE_APPLE_SCRIPT:
+        case ACTION_TYPE_APPLE_SCRIPT: {
             appleScriptId = [self appleScriptIdAtIndex:index];
             appleScript = [[AppleScriptsList sharedAppleScriptsList] getScriptById:appleScriptId];
-            script = [[NSAppleScript alloc] initWithSource:appleScript];
-            returnDescriptor = [script executeAndReturnError:&errorDict];
-            if (errorDict != nil) {
-                NSLog(@"Execute Apple Script: returnDescriptor: %@, errorDict: %@", returnDescriptor, errorDict);
-                MGPostNotification(@"MacGesture AppleScript Error",
-                                   errorDict[NSAppleScriptErrorMessage], NO);
-            }
+            dispatch_async([RulesList ruleExecutionQueue], ^{
+                @autoreleasepool {
+                    NSAppleScript *script = [[NSAppleScript alloc] initWithSource:appleScript];
+                    NSDictionary *errorDict;
+                    NSAppleEventDescriptor *returnDescriptor = [script executeAndReturnError:&errorDict];
+                    if (errorDict != nil) {
+                        NSLog(@"Execute Apple Script: returnDescriptor: %@, errorDict: %@", returnDescriptor, errorDict);
+                        MGPostNotification(@"MacGesture AppleScript Error",
+                                           errorDict[NSAppleScriptErrorMessage], NO);
+                    }
+                }
+            });
             break;
+        }
         default:
             break;
     }

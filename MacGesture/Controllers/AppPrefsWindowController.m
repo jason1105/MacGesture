@@ -44,6 +44,12 @@ static NSArray<NSString *> *languagesOrder;
 
 static NSArray<id> *previewPositions;
 
+// Issue #44: modifier key that, held while pressing the right button,
+// temporarily disables gestures for that whole drag. Pairs of
+// <defaults value, popup title>; "none" restores the never-suppress behavior.
+// The defaults values must match MGFlagMaskForSuppressModifier().
+static NSArray<NSArray<NSString *> *> *suppressModifiers;
+
 static NSUserDefaults *defaults;
 
 #define MacGestureRuleDataType @"MacGestureRuleDataType"
@@ -74,6 +80,14 @@ static BOOL isBigSur = NO;
         @[ @(MGPreviewPositionBottomLeft), NSLocalizedString(@"Bottom Left", nil) ],
         @[ @(MGPreviewPositionBottomCenter), NSLocalizedString(@"Bottom Center", nil) ],
         @[ @(MGPreviewPositionBottomRight), NSLocalizedString(@"Bottom Right", nil) ],
+    ];
+
+    suppressModifiers = @[
+        @[ @"none",    NSLocalizedString(@"Off", nil) ],
+        @[ @"command", @"Command" ],
+        @[ @"control", @"Control" ],
+        @[ @"option",  @"Option" ],
+        @[ @"function", @"fn" ],
     ];
 
     defaults = [NSUserDefaults standardUserDefaults];
@@ -205,6 +219,21 @@ static BOOL isBigSur = NO;
         if ([pos[0] integerValue] == position)
             idx = [previewPositions indexOfObject:pos];
     [_previewPositionComboBox selectItemAtIndex:idx];
+
+    [_suppressModifierComboBox addItemsWithTitles:[suppressModifiers mappedArrayUsingBlock:
+      ^NSString *(NSArray<NSString *> *obj, NSUInteger idx) {
+          return obj[1];
+      }]];
+
+    // Absent or unrecognized stored values behave as Command (the #44
+    // default), so select that entry rather than silently showing "Off".
+    NSString *suppressModifier = [defaults stringForKey:MGSuppressGestureModifierDefaultsKey];
+    NSUInteger suppressIdx = [suppressModifiers indexOfObjectPassingTest:
+      ^BOOL(NSArray<NSString *> *obj, NSUInteger idx, BOOL *stop) {
+          return [obj[0] isEqualToString:suppressModifier];
+      }];
+    if (suppressIdx == NSNotFound) suppressIdx = 1;
+    [_suppressModifierComboBox selectItemAtIndex:suppressIdx];
 
     for (NSUInteger i = 0; i < exampleAppleScripts.count; i += 2) {
         NSMenuItem *item = [NSMenuItem new];
@@ -711,6 +740,15 @@ static NSString *currentScriptId = nil;
     NSInteger idx = [_previewPositionComboBox indexOfSelectedItem] % previewPositions.count;
     MGPreviewPosition position = [previewPositions[idx][0] integerValue];
     [MGOptionsDefine setPreviewPosition:position];
+}
+
+- (IBAction)suppressModifierChanged:(id)sender {
+    NSInteger idx = [_suppressModifierComboBox indexOfSelectedItem] % suppressModifiers.count;
+    [defaults setObject:suppressModifiers[idx][0] forKey:MGSuppressGestureModifierDefaultsKey];
+    // Apply on the very next right-click instead of waiting for the
+    // NSUserDefaultsDidChangeNotification (which is posted as well) to reach
+    // the app delegate.
+    MGRefreshSuppressGestureModifierCache();
 }
 
 - (IBAction)onToggleMacGestureEnabled:(id)sender {

@@ -43,6 +43,7 @@
                 <outlet property="rulesPreferenceView" destination="5" id="257"/>
                 <outlet property="rulesTableView" destination="289" id="324"/>
                 <outlet property="showIconInStatusBarButton" destination="ccx-Tb-9cw" id="M8p-za-0vX"/>
+                <outlet property="suppressModifierComboBox" destination="mgQ-44-pop" id="mgQ-44-out"/>
                 <outlet property="updater" destination="360" id="364"/>
                 <outlet property="versionCode" destination="num-fq-Ld9" id="JsU-bx-3Ga"/>
                 <outlet property="webViewBox" destination="cDH-Ub-QSl" id="Oip-p5-29D"/>
@@ -129,6 +130,36 @@
                                     <action selector="languageChanged:" target="-2" id="uKR-4u-kG6"/>
                                 </connections>
                             </popUpButton>
+                            <textField horizontalHuggingPriority="251" verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="mgQ-44-lbl">
+                                <rect key="frame" x="348" y="53" width="156" height="17"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                <textFieldCell key="cell" sendsActionOnEndEditing="YES" alignment="center" title="Temporarily disable with" id="mgQ-44-lbl-C">
+                                    <font key="font" metaFont="system"/>
+                                    <color key="textColor" name="labelColor" catalog="System" colorSpace="catalog"/>
+                                    <color key="backgroundColor" name="controlColor" catalog="System" colorSpace="catalog"/>
+                                </textFieldCell>
+                            </textField>
+                            <popUpButton verticalHuggingPriority="750" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="mgQ-44-pop">
+                                <rect key="frame" x="348" y="24" width="156" height="25"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                <popUpButtonCell key="cell" type="push" bezelStyle="rounded" alignment="left" lineBreakMode="truncatingTail" borderStyle="borderAndBezel" imageScaling="proportionallyDown" inset="2" id="mgQ-44-pop-C">
+                                    <behavior key="behavior" lightByBackground="YES" lightByGray="YES"/>
+                                    <font key="font" metaFont="menu"/>
+                                    <menu key="menu" id="mgQ-44-pop-M"/>
+                                </popUpButtonCell>
+                                <connections>
+                                    <action selector="suppressModifierChanged:" target="-2" id="mgQ-44-act"/>
+                                </connections>
+                            </popUpButton>
+                            <textField verticalHuggingPriority="750" horizontalCompressionResistancePriority="250" fixedFrame="YES" translatesAutoresizingMaskIntoConstraints="NO" id="mgQ-44-hnt">
+                                <rect key="frame" x="348" y="0.0" width="156" height="22"/>
+                                <autoresizingMask key="autoresizingMask" flexibleMaxX="YES" flexibleMinY="YES"/>
+                                <textFieldCell key="cell" sendsActionOnEndEditing="YES" alignment="center" title="fn may also switch the input source" id="mgQ-44-hnt-C">
+                                    <font key="font" metaFont="miniSystem"/>
+                                    <color key="textColor" name="secondaryLabelColor" catalog="System" colorSpace="catalog"/>
+                                    <color key="backgroundColor" name="controlColor" catalog="System" colorSpace="catalog"/>
+                                </textFieldCell>
+                            </textField>
                         </subviews>
                     </view>
                 </box>

@@ -27,6 +27,15 @@ static NSUserDefaults *defaults;
 static NSTimer *accessibilityWatchTimer;
 static NSAlert *accessibilityAlert;
 
+// YES when running inside the XCTest host: `xcodebuild test` launches the app
+// as TEST_HOST with the test bundle loaded. The app must skip test-hostile
+// behavior then — quitting because another MacGesture instance is running (the
+// developer's real install usually is), the Accessibility nag alert, and the
+// TCC permission prompt.
+static BOOL MGRunningUnderXCTest(void) {
+    return NSClassFromString(@"XCTestCase") != nil;
+}
+
 + (AppDelegate *)appDelegate {
     return (AppDelegate *) [[NSApplication sharedApplication] delegate];
 }
@@ -47,7 +56,10 @@ static NSAlert *accessibilityAlert;
 
     // Check whether MacGesture isn't running already.
     // In case it is, notify the earlier instance to open Preferences window and finish execution.
-    if (apps.count > 1)
+    // Under XCTest the host must stay alive even though the developer's real
+    // MacGesture is running, or the test runner loses its connection right
+    // away ("exited with code 0 before establishing connection").
+    if (apps.count > 1 && !MGRunningUnderXCTest())
     {
         [center postNotificationName:name object:nil userInfo:nil deliverImmediately:YES];
         dispatch_async(dispatch_get_main_queue(), ^{
@@ -64,6 +76,16 @@ static NSAlert *accessibilityAlert;
     NSDictionary *defaultPrefs = [NSDictionary dictionaryWithContentsOfURL:defaultPrefsFile];
     [defaults registerDefaults:defaultPrefs];
     [defaults synchronize];
+
+    // Issue #44: read the configured suppress modifier once and keep the cache
+    // fresh afterwards — the event tap must not read NSUserDefaults per event.
+    // This also catches `defaults write` from outside the app.
+    MGRefreshSuppressGestureModifierCache();
+    [[NSNotificationCenter defaultCenter]
+        addObserver:self
+           selector:@selector(suppressModifierDefaultsDidChange:)
+               name:NSUserDefaultsDidChangeNotification
+             object:nil];
 
     // README prompt
 
@@ -110,7 +132,10 @@ static NSAlert *accessibilityAlert;
     // Accessibility permission check & alert
 
     const void * keys[] = { kAXTrustedCheckOptionPrompt };
-    const void * values[] = { kCFBooleanTrue };
+    // Under XCTest do not trigger the TCC permission prompt: the test host is
+    // a fresh ad-hoc binary that will never be trusted, and the system dialog
+    // would only spam the developer's screen on every test run.
+    const void * values[] = { MGRunningUnderXCTest() ? kCFBooleanFalse : kCFBooleanTrue };
 
     CFDictionaryRef options = CFDictionaryCreate(
         kCFAllocatorDefault, keys, values, sizeof(keys) / sizeof(*keys),
@@ -127,7 +152,9 @@ static NSAlert *accessibilityAlert;
         [self startWatchingForAccessibilityPermission];
 
         // Only nag about the permission when that is actually what is missing.
-        if (!accessibilityEnabled)
+        // The alert runs a modal session on the main queue, which would stall
+        // the test run, so keep it out of the test host as well.
+        if (!accessibilityEnabled && !MGRunningUnderXCTest())
             [self presentAccessibilityAlert];
     }
 
@@ -301,6 +328,10 @@ static NSAlert *accessibilityAlert;
 
 #pragma mark -
 
+- (void)suppressModifierDefaultsDidChange:(NSNotification *)notification {
+    MGRefreshSuppressGestureModifierCache();
+}
+
 - (void)workspaceSessionActiveChange:(NSNotification *)notification {
     BOOL nowActive = notification.name != NSWorkspaceSessionDidResignActiveNotification;
     NSLog(@"[WORKSPACE SESSION] Now active: %d", nowActive);
@@ -463,6 +494,39 @@ void resetDirection(void) {
     [direction setString:@""];
 }
 
+NSString *const MGSuppressGestureModifierDefaultsKey = @"suppressGestureModifier";
+
+// Cached mask of the configured suppress modifier. The event tap consults
+// this on every right-mouse-down, so the defaults database is never read
+// synchronously from the hot path — only by MGRefreshSuppressGestureModifier-
+// Cache() at launch, on NSUserDefaultsDidChangeNotification, and when the
+// Preferences popup changes the value.
+static CGEventFlags suppressGestureModifierMask = kCGEventFlagMaskCommand;
+
+CGEventFlags MGFlagMaskForSuppressModifier(NSString *modifierValue) {
+    if ([modifierValue isEqualToString:@"command"]) return kCGEventFlagMaskCommand;
+    if ([modifierValue isEqualToString:@"control"]) return kCGEventFlagMaskControl;
+    if ([modifierValue isEqualToString:@"option"]) return kCGEventFlagMaskAlternate;
+    if ([modifierValue isEqualToString:@"function"]) return kCGEventFlagMaskSecondaryFn;
+    if ([modifierValue isEqualToString:@"none"]) return 0;
+    // Absent or unrecognized: the #44 default, Command.
+    return kCGEventFlagMaskCommand;
+}
+
+BOOL MGShouldSuppressGestureForDragWithModifier(CGEventFlags flags, NSString *modifierValue) {
+    CGEventFlags mask = MGFlagMaskForSuppressModifier(modifierValue);
+    return mask != 0 && (flags & mask) == mask;
+}
+
+void MGRefreshSuppressGestureModifierCache(void) {
+    suppressGestureModifierMask = MGFlagMaskForSuppressModifier(
+        [[NSUserDefaults standardUserDefaults] stringForKey:MGSuppressGestureModifierDefaultsKey]);
+}
+
+BOOL MGShouldSuppressGestureForDrag(CGEventFlags flags) {
+    return suppressGestureModifierMask != 0 && (flags & suppressGestureModifierMask) == suppressGestureModifierMask;
+}
+
 // See https://developer.apple.com/library/mac/documentation/Carbon/Reference/QuartzEventServicesRef/#//apple_ref/c/tdef/CGEventTapCallBack
 static CGEventRef mouseEventCallback(CGEventTapProxy proxy, CGEventType type, CGEventRef event, void *refcon) {
     static BOOL shouldShow;
@@ -485,6 +549,18 @@ static CGEventRef mouseEventCallback(CGEventTapProxy proxy, CGEventType type, CG
 //                        if (mouseDraggedEvent) {
 //                            CGEventPost(kCGSessionEventTap, mouseDraggedEvent);
 //                        }
+                    shouldShow = NO;
+                    return event;
+                }
+                // Issue #42: holding Control while pressing the right button
+                // asks for the raw right-drag (e.g. dragging a canvas inside
+                // another app), so skip the gesture engine for this whole
+                // drag — same bail-out shape as the blocker-app path above,
+                // which makes every dragged / up / scroll event of this drag
+                // pass through untouched. Judged only here, at mouse-down:
+                // pressing Control mid-drag must not cut short a gesture that
+                // already started.
+                if (MGShouldSuppressGestureForDrag(CGEventGetFlags(event))) {
                     shouldShow = NO;
                     return event;
                 }
